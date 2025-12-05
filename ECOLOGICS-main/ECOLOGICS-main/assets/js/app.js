@@ -500,7 +500,7 @@ function initializeButtons() {
     
     if (loginBtn) {
         loginBtn.addEventListener('click', () => {
-            alert('Funcionalidad de inicio de sesión en desarrollo. En el prototipo completo esto permitiría acceso a diferentes perfiles (cliente, recolector, administrador).');
+            window.location.href = 'login.html';
         });
     }
     
