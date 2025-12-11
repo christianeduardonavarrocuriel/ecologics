@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Usuario - Recolección de Residuos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        /* Estilos para los mapas Leaflet */
+        #mapaSolicitud, #mapaSeguimiento, #mapaRutas, #mapaSugerir {
+            width: 100%;
+            height: 400px;
+            z-index: 1;
+        }
+        
+        #mapaSeguimiento {
+            height: 500px;
+        }
+        
+        #mapaRutas, #mapaSugerir {
+            height: 600px;
+        }
+        
+        .leaflet-container {
+            height: 100%;
+            width: 100%;
+        }
+        
+        .custom-div-icon {
+            background: transparent;
+            border: none;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes ping {
+            75%, 100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+        .animate-ping {
+            animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        .sidebar-menu-item {
+            transition: all 0.3s ease;
+        }
+        .sidebar-menu-item:hover {
+            transform: translateX(4px);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Contenedor principal -->
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="w-64 bg-gradient-to-b from-blue-600 to-blue-700 text-white flex-shrink-0 hidden md:flex flex-col">
+            <div class="p-6">
+                <h1 class="text-xl tracking-tight font-bold">Panel de Recolección</h1>
+                <p class="text-blue-100 text-sm mt-1">Sistema de Gestión</p>
+            </div>
+            <nav class="flex-1 px-3">
+                <button onclick="changeView('inicio')" data-view="inicio" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    <span class="text-sm">Inicio</span>
+                </button>
+                <button onclick="changeView('solicitar')" data-view="solicitar" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <span class="text-sm">Solicitar Recolección</span>
+                </button>
+                <button onclick="changeView('mis-solicitudes')" data-view="mis-solicitudes" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span class="text-sm">Mis Solicitudes</span>
+                </button>
+                <button onclick="changeView('seguimiento')" data-view="seguimiento" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span class="text-sm">Seguimiento en Tiempo Real</span>
+                </button>
+                <button onclick="changeView('rutas')" data-view="rutas" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                    </svg>
+                    <span class="text-sm">Rutas Generales</span>
+                </button>
+                <button onclick="changeView('sugerir-ruta')" data-view="sugerir-ruta" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                    <span class="text-sm">Sugerir Ruta</span>
+                </button>
+                <button onclick="changeView('quejas')" data-view="quejas" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    <span class="text-sm">Quejas y Soporte</span>
+                </button>
+                <button onclick="changeView('perfil')" data-view="perfil" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
+                    <span class="text-sm">Perfil</span>
+                </button>
+            </nav>
+            <div class="p-4 border-t border-blue-500">
+                <p class="text-xs text-blue-200">© 2025 EcoRecolección</p>
+            </div>
+        </aside>
+
+        <!-- Contenido principal -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <header class="bg-white border-b border-gray-200 px-6 md:px-8 py-4 flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-800">Bienvenido de nuevo</h2>
+                    <p class="text-sm text-gray-500">Gestiona tus solicitudes de recolección</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="relative">
+                        <button onclick="toggleNotifications()" class="relative p-2 hover:bg-gray-100 rounded-full transition-colors">
+                            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                            </svg>
+                            <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                        </button>
+                        <div id="notificationsPanel" class="hidden absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="text-sm font-semibold text-gray-700">Notificaciones</h3>
+                            </div>
+                            <div class="max-h-64 overflow-y-auto">
+                                <div class="p-3 border-b border-gray-100 hover:bg-gray-50">
+                                    <p class="text-sm text-gray-700">Tu solicitud #1234 ha sido completada</p>
+                                </div>
+                                <div class="p-3 border-b border-gray-100 hover:bg-gray-50">
+                                    <p class="text-sm text-gray-700">Nueva ruta disponible en tu zona</p>
+                                </div>
+                                <div class="p-3 border-b border-gray-100 hover:bg-gray-50">
+                                    <p class="text-sm text-gray-700">Recordatorio: Recolección programada mañana</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-blue-50 to-green-50 rounded-full">
+                        <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                        <div class="hidden sm:block">
+                            <p id="headerUserName" class="text-sm font-medium text-gray-800">Juan Pérez</p>
+                            <p class="text-xs text-gray-500">Usuario</p>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Área de contenido -->
+            <main id="mainContent" class="flex-1 overflow-y-auto p-6 md:p-8">
+                <!-- El contenido se cargará dinámicamente aquí -->
+            </main>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='usuarioapp.js') }}"></script>
+</body>
+</html>
