@@ -72,27 +72,27 @@
                 <p class="text-green-100 text-sm mt-1">Panel de Recolector</p>
             </div>
             <nav class="flex-1 px-3 space-y-2">
-                <button onclick="changeView('inicio')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-green-500/30 text-white">
+                <button onclick="changeView('inicio')" data-view="inicio" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-white text-black shadow-lg">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
                     <span>Inicio</span>
                 </button>
-                <button onclick="changeView('solicitudes')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
+                <button onclick="changeView('solicitudes')" data-view="solicitudes" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-white hover:bg-green-500/30">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M5 3a2 2 0 012-2h6a2 2 0 012 2v2h2a2 2 0 012 2v10a2 2 0 01-2 2H3a2 2 0 01-2-2V7a2 2 0 012-2h2V3z"></path></svg>
                     <span>Solicitudes Disponibles</span>
                 </button>
-                <button onclick="changeView('mis-recolecciones')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
+                <button onclick="changeView('mis-recolecciones')" data-view="mis-recolecciones" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-white hover:bg-green-500/30">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2h10a1 1 0 000-2 2 2 0 00-2 2v10a2 2 0 002 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h6a1 1 0 000-2H7z"></path></svg>
                     <span>Mis Recolecciones</span>
                 </button>
-                <button onclick="changeView('seguimiento')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
+                <button onclick="changeView('seguimiento')" data-view="seguimiento" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-white hover:bg-green-500/30">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L9.9 4.05a7 7 0 00-9.9 0zM9 11a2 2 0 100-4 2 2 0 000 4z"></path></svg>
                     <span>Seguimiento</span>
                 </button>
-                <button onclick="changeView('rutas')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
+                <button onclick="changeView('rutas')" data-view="rutas" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-white hover:bg-green-500/30">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 3a1 1 0 000 2h2a1 1 0 100-2H9z"></path><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm7 4a1 1 0 11-2 0 1 1 0 012 0z"></path></svg>
                     <span>Rutas</span>
                 </button>
-                <button onclick="changeView('perfil')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
+                <button onclick="changeView('perfil')" data-view="perfil" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-white hover:bg-green-500/30">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"></path></svg>
                     <span>Mi Perfil</span>
                 </button>
@@ -149,9 +149,23 @@
             }
         }
 
+        // Actualizar estado visual del sidebar
+        function updateSidebar() {
+            const buttons = document.querySelectorAll('.sidebar-menu-item');
+            buttons.forEach(button => {
+                const viewName = button.getAttribute('data-view');
+                if (viewName === currentView) {
+                    button.className = 'sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-white text-black shadow-lg';
+                } else {
+                    button.className = 'sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-white hover:bg-green-500/30';
+                }
+            });
+        }
+
         // Cambiar vista
         function changeView(view) {
             currentView = view;
+            updateSidebar();
             const mainContent = document.getElementById('mainContent');
             
             const titles = {
@@ -224,11 +238,7 @@
                             <div class="flex gap-3">
                                 <button onclick="enviarUbicacion()" class="flex-1 bg-white hover:bg-gray-100 text-green-700 font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2">
                                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.172 4.172a4 4 0 015.656 0L10 6.343l.172-.171a4 4 0 115.656 5.656L10 17.657l-5.828-5.829a4 4 0 010-5.656z" clip-rule="evenodd"></path></svg>
-                                    📍 Enviar Mi Ubicación Ahora
-                                </button>
-                                <button onclick="iniciarSeguimientoAutomatico()" id="btnSeguimiento" class="bg-white hover:bg-gray-100 text-green-700 font-bold py-2 px-4 rounded-lg transition flex items-center gap-2">
-                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1h7.586a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM5 16a2 2 0 11-4 0 2 2 0 014 0zm12 0a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                                    Auto
+                                    Enviar Mi Ubicación Ahora
                                 </button>
                             </div>
                             <p id="ubicacionMsg" class="text-green-100 text-xs mt-3"></p>
@@ -307,7 +317,7 @@
                     <div class="space-y-4">
                         <div class="bg-white rounded-xl p-6 border border-gray-200 mb-6">
                             <div class="flex items-center gap-3">
-                                <div class="text-3xl">📋</div>
+                                <div class="text-3xl"></div>
                                 <div>
                                     <h3 class="font-semibold text-gray-800 text-lg">Solicitudes Disponibles</h3>
                                     <p class="text-sm text-gray-600">Total: ${solicitudes.length} recolecciones pendientes</p>
@@ -323,21 +333,21 @@
                                             <h3 class="font-semibold text-gray-800 text-lg">${s.tipo_residuo}</h3>
                                             <span class="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">${s.kilos} kg</span>
                                         </div>
-                                        <p class="text-sm text-gray-600">📍 ${s.direccion}</p>
+                                        <p class="text-sm text-gray-600">${s.direccion}</p>
                                         <p class="text-xs text-gray-500 mt-1">ID: #${s.id_solicitud} | Solicitante: ${s.nombre} ${s.apellidos}</p>
                                     </div>
                                 </div>
                                 
-                                ${s.info_extra ? `<p class="text-sm text-gray-600 mb-3">📝 ${s.info_extra}</p>` : ''}
-                                ${s.usuario_telefono ? `<p class="text-sm text-gray-600 mb-3">📞 ${s.usuario_telefono}</p>` : ''}
+                                ${s.info_extra ? `<p class="text-sm text-gray-600 mb-3">${s.info_extra}</p>` : ''}
+                                ${s.usuario_telefono ? `<p class="text-sm text-gray-600 mb-3">${s.usuario_telefono}</p>` : ''}
                                 
                                 <div class="flex gap-2">
                                     <button onclick="aceptarSolicitud(${s.id_solicitud})" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
-                                        ✓ Aceptar Solicitud
+                                        Aceptar Solicitud
                                     </button>
                                 </div>
                             </div>
-                        `).join('') : '<div class="text-center py-12"><p class="text-gray-500 text-lg">✓ No hay solicitudes disponibles</p></div>'}
+                        `).join('') : '<div class="text-center py-12"><p class="text-gray-500 text-lg">No hay solicitudes disponibles</p></div>'}
                     </div>
                 `;
                 
@@ -389,7 +399,7 @@
             const html = `
                 <div class="map-container">
                     <div class="map-header bg-gradient-to-r from-blue-50 to-cyan-50">
-                        <h3>🚛 Seguimiento en Tiempo Real</h3>
+                        <h3>Seguimiento en Tiempo Real</h3>
                         <p>Ubicación actual del recolector (actualización cada 5s)</p>
                     </div>
                     <div id="mapaSeguimiento" class="rounded-lg overflow-hidden"></div>
@@ -404,7 +414,7 @@
             const html = `
                 <div class="map-container">
                     <div class="map-header bg-gradient-to-r from-purple-50 to-blue-50">
-                        <h3>🗺️ Rutas de Tulancingo de Bravo</h3>
+                        <h3>Rutas de Tulancingo de Bravo</h3>
                         <p>7 rutas con camiones asignados y puntos de parada</p>
                     </div>
                     <div id="mapaRutas" class="rounded-lg overflow-hidden"></div>
@@ -468,654 +478,6 @@
             } catch (error) {
                 console.error('Error:', error);
             }
-        }
-
-        function logout() {
-            window.location.href = '/logout';
-        }
-
-        // Cargar datos iniciales
-        loadUserProfile();
-        loadInicio();
-    </script>
-</body>
-</html>
-    <style>
-        #mapaSolicitud, #mapaSeguimiento, #mapaRutas {
-            width: 100%;
-            height: 400px;
-        }
-        #mapaSeguimiento, #mapaRutas {
-            height: 500px;
-        }
-        .sidebar-menu-item {
-            transition: all 0.3s ease;
-        }
-        .sidebar-menu-item:hover {
-            transform: translateX(4px);
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
-</head>
-<body class="bg-gray-50">
-    <div class="flex h-screen">
-        <!-- Sidebar -->
-        <aside class="w-64 bg-gradient-to-b from-green-600 to-green-700 text-white flex-shrink-0 hidden md:flex flex-col">
-            <div class="p-6">
-                <h1 class="text-2xl font-bold">EcoRecolección</h1>
-                <p class="text-green-100 text-sm mt-1">Panel de Recolector</p>
-            </div>
-            <nav class="flex-1 px-3 space-y-2">
-                <button onclick="changeView('inicio')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-green-500/30 text-white">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
-                    <span>Inicio</span>
-                </button>
-                <button onclick="changeView('solicitudes')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M5 3a2 2 0 012-2h6a2 2 0 012 2v2h2a2 2 0 012 2v10a2 2 0 01-2 2H3a2 2 0 01-2-2V7a2 2 0 012-2h2V3z"></path></svg>
-                    <span>Solicitudes Disponibles</span>
-                </button>
-                <button onclick="changeView('mis-recolecciones')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2h10a1 1 0 000-2 2 2 0 00-2 2v10a2 2 0 002 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h6a1 1 0 000-2H7z"></path></svg>
-                    <span>Mis Recolecciones</span>
-                </button>
-                <button onclick="changeView('seguimiento')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L9.9 4.05a7 7 0 00-9.9 0zM9 11a2 2 0 100-4 2 2 0 000 4z"></path></svg>
-                    <span>Seguimiento</span>
-                </button>
-                <button onclick="changeView('evidencia')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"></path></svg>
-                    <span>Enviar Evidencia</span>
-                </button>
-                <button onclick="changeView('quejas')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5z"></path><path d="M6 8a1 1 0 10-2 0 1 1 0 002 0zM8 8a1 1 0 10-2 0 1 1 0 002 0zM10 8a1 1 0 10-2 0 1 1 0 002 0zM12 8a1 1 0 10-2 0 1 1 0 002 0zM14 8a1 1 0 10-2 0 1 1 0 002 0z"></path></svg>
-                    <span>Quejas y Soporte</span>
-                </button>
-                <button onclick="changeView('perfil')" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-green-100 hover:bg-green-500/30">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"></path></svg>
-                    <span>Mi Perfil</span>
-                </button>
-            </nav>
-            <div class="p-4 border-t border-green-500">
-                <button onclick="logout()" class="w-full px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg text-sm font-medium transition">
-                    Cerrar Sesión
-                </button>
-            </div>
-        </aside>
-
-        <!-- Contenido Principal -->
-        <div class="flex-1 flex flex-col overflow-hidden">
-            <!-- Header -->
-            <header class="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-                <div>
-                    <h2 id="headerTitle" class="text-2xl font-bold text-gray-800">Panel de Inicio</h2>
-                    <p id="headerSubtitle" class="text-sm text-gray-500">Bienvenido de vuelta</p>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-green-50 to-blue-50 rounded-full">
-                        <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold">CM</div>
-                        <div>
-                            <p id="headerUserName" class="text-sm font-medium text-gray-800">Cargando...</p>
-                            <p class="text-xs text-gray-500">Recolector</p>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <!-- Main Content -->
-            <main id="mainContent" class="flex-1 overflow-y-auto p-8">
-                <div class="text-center py-12">
-                    <div class="inline-block">
-                        <div class="loader"></div>
-                    </div>
-                    <p class="mt-4 text-gray-600">Cargando panel...</p>
-                </div>
-            </main>
-        </div>
-    </div>
-
-    <script>
-        // Cambiar vista
-        function changeView(view) {
-            currentView = view;
-            const mainContent = document.getElementById('mainContent');
-            
-            // Actualizar título del header
-            const titles = {
-                'inicio': { title: 'Panel de Inicio', subtitle: 'Resumen de tu actividad' },
-                'solicitudes': { title: 'Solicitudes Disponibles', subtitle: 'Nuevas recolecciones para ti' },
-                'mis-recolecciones': { title: 'Mis Recolecciones', subtitle: 'Historial de tus recolecciones' },
-                'seguimiento': { title: 'Seguimiento en Tiempo Real', subtitle: 'Ubicación de tus solicitudes' },
-                'evidencia': { title: 'Enviar Evidencia', subtitle: 'Comprueba tus recolecciones' },
-                'quejas': { title: 'Quejas y Soporte', subtitle: 'Reporta problemas' },
-                'perfil': { title: 'Mi Perfil', subtitle: 'Información personal' }
-            };
-            
-            document.getElementById('headerTitle').textContent = titles[view]?.title || 'Panel';
-            document.getElementById('headerSubtitle').textContent = titles[view]?.subtitle || '';
-            
-            mainContent.innerHTML = '<div class="text-center py-12"><div class="inline-block loader"></div></div>';
-            
-            switch(view) {
-                case 'inicio':
-                    loadInicio();
-                    break;
-                case 'solicitudes':
-                    loadSolicitudes();
-                    break;
-                case 'mis-recolecciones':
-                    loadMisRecolecciones();
-                    break;
-                case 'perfil':
-                    loadPerfil();
-                    break;
-                case 'quejas':
-                    loadQuejas();
-                    break;
-                default:
-                    mainContent.innerHTML = '<p class="text-gray-500">Sección en desarrollo</p>';
-            }
-        }
-
-        // Vista Inicio
-        async function loadInicio() {
-            try {
-                const response = await fetch(`${API_BASE}/usuario/estadisticas`);
-                const stats = await response.json();
-                
-                const html = `
-                    <div class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-sm text-gray-600">Solicitudes Pendientes</span>
-                                    <svg class="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20"><path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"></path></svg>
-                                </div>
-                                <p class="text-3xl font-bold text-gray-800">${stats.pendientes}</p>
-                            </div>
-                            
-                            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-sm text-gray-600">En Proceso</span>
-                                    <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z"></path></svg>
-                                </div>
-                                <p class="text-3xl font-bold text-gray-800">${stats.en_proceso}</p>
-                            </div>
-                            
-                            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-sm text-gray-600">Completadas</span>
-                                    <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg>
-                                </div>
-                                <p class="text-3xl font-bold text-gray-800">${stats.completadas}</p>
-                            </div>
-                            
-                            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-sm text-gray-600">Kilos Recolectados</span>
-                                    <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.4 14.4a2 2 0 01-1.414-3.414L9 5.586l6.828 6.828a2 2 0 11-2.828 2.828L9 11.172l-4.6 4.6a2 2 0 01-2.828-2.828l4.6-4.6a1 1 0 00-1.414-1.414L4.4 14.4z"></path></svg>
-                                </div>
-                                <p class="text-3xl font-bold text-gray-800">${stats.total_kilos}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-white rounded-xl p-6 border border-gray-200">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Actividad Reciente</h3>
-                            <div class="space-y-3">
-                                ${stats.actividad.map(a => `
-                                    <div class="flex items-start gap-4 pb-3 border-b border-gray-100 last:border-0">
-                                        <div class="text-xs text-gray-500 min-w-max">${new Date(a.fecha_solicitud).toLocaleDateString()}</div>
-                                        <div class="flex-1">
-                                            <p class="text-sm font-medium text-gray-800">${a.tipo_residuo}</p>
-                                            <p class="text-xs text-gray-500">${a.estado}</p>
-                                        </div>
-                                        <span class="px-2 py-1 rounded text-xs font-medium ${
-                                            a.estado === 'completada' ? 'bg-green-100 text-green-800' :
-                                            a.estado === 'en-proceso' ? 'bg-blue-100 text-blue-800' :
-                                            'bg-orange-100 text-orange-800'
-                                        }">${a.estado}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                document.getElementById('mainContent').innerHTML = html;
-            } catch (error) {
-                console.error('Error:', error);
-                document.getElementById('mainContent').innerHTML = '<p class="text-red-500">Error cargando datos</p>';
-            }
-        }
-
-        // Vista Solicitudes
-        async function loadSolicitudes() {
-            try {
-                const response = await fetch(`${API_BASE}/usuario/solicitudes?estado=pendiente`);
-                const solicitudes = await response.json();
-                
-                const html = `
-                    <div class="space-y-4">
-                        ${solicitudes.length > 0 ? solicitudes.map(s => `
-                            <div class="bg-white rounded-xl p-6 border border-gray-200 hover:border-green-300 transition">
-                                <div class="flex items-start justify-between mb-3">
-                                    <div>
-                                        <h3 class="font-semibold text-gray-800">${s.tipo_residuo}</h3>
-                                        <p class="text-sm text-gray-600 mt-1">${s.direccion}</p>
-                                    </div>
-                                    <span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">${s.kilos} kg</span>
-                                </div>
-                                <p class="text-sm text-gray-600 mb-4">${s.info_extra}</p>
-                                <button onclick="aceptarSolicitud(${s.id_solicitud})" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm">
-                                    Aceptar Solicitud
-                                </button>
-                            </div>
-                        `).join('') : '<p class="text-gray-500 text-center py-8">No hay solicitudes disponibles</p>'}
-                    </div>
-                `;
-                
-                document.getElementById('mainContent').innerHTML = html;
-            } catch (error) {
-                console.error('Error:', error);
-                document.getElementById('mainContent').innerHTML = '<p class="text-red-500">Error cargando solicitudes</p>';
-            }
-        }
-
-        // Vista Mis Recolecciones
-        async function loadMisRecolecciones() {
-            try {
-                const response = await fetch(`${API_BASE}/recolector/mis-solicitudes`);
-                const solicitudes = await response.json();
-                
-                const html = `
-                    <div class="space-y-4">
-                        ${solicitudes.length > 0 ? solicitudes.map(s => `
-                            <div class="bg-white rounded-xl p-6 border border-gray-200">
-                                <div class="flex items-start justify-between">
-                                    <div class="flex-1">
-                                        <h3 class="font-semibold text-gray-800">${s.tipo_residuo}</h3>
-                                        <p class="text-sm text-gray-600">${s.direccion}</p>
-                                        <p class="text-sm text-gray-500 mt-2">${new Date(s.fecha_solicitud).toLocaleDateString()}</p>
-                                    </div>
-                                    <div class="text-right">
-                                        <p class="font-bold text-gray-800">${s.kilos} kg</p>
-                                        <span class="inline-block px-3 py-1 rounded-full text-xs font-medium mt-2 ${
-                                            s.estado === 'completada' ? 'bg-green-100 text-green-800' :
-                                            s.estado === 'en-proceso' ? 'bg-blue-100 text-blue-800' :
-                                            'bg-orange-100 text-orange-800'
-                                        }">${s.estado}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('') : '<p class="text-gray-500 text-center py-8">No hay recolecciones registradas</p>'}
-                    </div>
-                `;
-                
-                document.getElementById('mainContent').innerHTML = html;
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        }
-
-        // Vista Perfil
-        async function loadPerfil() {
-            try {
-                const response = await fetch(`${API_BASE}/usuario/perfil`);
-                const perfil = await response.json();
-                
-                const html = `
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div class="lg:col-span-2">
-                            <div class="bg-white rounded-xl p-8 border border-gray-200 mb-6">
-                                <div class="flex items-center gap-6 mb-8">
-                                    <div class="w-20 h-20 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-                                        ${perfil.nombre.charAt(0)}${perfil.apellidos.charAt(0)}
-                                    </div>
-                                    <div>
-                                        <h2 class="text-2xl font-bold text-gray-800">${perfil.nombre} ${perfil.apellidos}</h2>
-                                        <p class="text-gray-600">@${perfil.username}</p>
-                                    </div>
-                                </div>
-                                
-                                <div class="space-y-4">
-                                    <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                                        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2.94 6.412A2 2 0 002 8.25V16a2 2 0 002 2h12a2 2 0 002-2V8.25a2 2 0 00-.94-1.838l-8-4A2 2 0 008 0H8a2 2 0 00-1.06.374l-8 4z"></path></svg>
-                                        <div>
-                                            <p class="text-sm text-gray-600">Email</p>
-                                            <p class="text-gray-800">${perfil.email}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                                        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773c.418 1.265 1.215 2.807 2.604 4.196 1.389 1.389 2.93 2.186 4.196 2.604l.773-1.548a1 1 0 011.06-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path></svg>
-                                        <div>
-                                            <p class="text-sm text-gray-600">Teléfono</p>
-                                            <p class="text-gray-800">${perfil.telefono}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                                        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L9.9 4.05a7 7 0 00-9.9 0zM9 11a2 2 0 100-4 2 2 0 000 4z"></path></svg>
-                                        <div>
-                                            <p class="text-sm text-gray-600">Dirección</p>
-                                            <p class="text-gray-800">${perfil.direccion}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Formulario de cambio de contraseña -->
-                            <div class="bg-white rounded-xl p-8 border border-gray-200">
-                                <h3 class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg>
-                                    Cambiar Contraseña
-                                </h3>
-                                
-                                <div id="cambiarContraseñaMsg" class="mb-4"></div>
-                                
-                                <form id="cambiarContraseñaForm" class="space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Contraseña Actual</label>
-                                        <input type="password" id="contraActual" placeholder="Ingresa tu contraseña actual"
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" required>
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Nueva Contraseña</label>
-                                        <input type="password" id="contraNueva" placeholder="Mínimo 6 caracteres"
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" required minlength="6">
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Confirmar Nueva Contraseña</label>
-                                        <input type="password" id="contraConfirmar" placeholder="Repite tu nueva contraseña"
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" required minlength="6">
-                                    </div>
-                                    
-                                    <button type="submit" class="w-full bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg transition-all font-medium">
-                                        🔒 Cambiar Contraseña
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                document.getElementById('mainContent').innerHTML = html;
-                
-                // Agregar event listener al formulario
-                const form = document.getElementById('cambiarContraseñaForm');
-                if (form) {
-                    form.addEventListener('submit', cambiarContraseña);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        }
-        
-        // Función para cambiar contraseña
-        async function cambiarContraseña(e) {
-            e.preventDefault();
-            
-            const contraActual = document.getElementById('contraActual').value;
-            const contraNueva = document.getElementById('contraNueva').value;
-            const contraConfirmar = document.getElementById('contraConfirmar').value;
-            const msgDiv = document.getElementById('cambiarContraseñaMsg');
-            
-            // Validaciones
-            if (!contraActual || !contraNueva || !contraConfirmar) {
-                mostrarMensaje(msgDiv, 'Todos los campos son obligatorios', 'error');
-                return;
-            }
-            
-            if (contraNueva !== contraConfirmar) {
-                mostrarMensaje(msgDiv, 'Las contraseñas nuevas no coinciden', 'error');
-                return;
-            }
-            
-            if (contraNueva.length < 6) {
-                mostrarMensaje(msgDiv, 'La contraseña debe tener al menos 6 caracteres', 'error');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`${API_BASE}/usuario/cambiar-contrasena`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        contrasena_actual: contraActual,
-                        contrasena_nueva: contraNueva,
-                        contrasena_confirmar: contraConfirmar
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    mostrarMensaje(msgDiv, '✓ Contraseña actualizada correctamente', 'success');
-                    document.getElementById('cambiarContraseñaForm').reset();
-                    setTimeout(() => msgDiv.innerHTML = '', 3000);
-                } else {
-                    mostrarMensaje(msgDiv, result.error || 'Error al cambiar la contraseña', 'error');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                mostrarMensaje(msgDiv, 'Error al cambiar la contraseña', 'error');
-            }
-        }
-        
-        function mostrarMensaje(div, mensaje, tipo) {
-            const bgColor = tipo === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800';
-            div.innerHTML = `<div class="p-4 ${bgColor} border rounded-lg text-sm">${mensaje}</div>`;
-        }
-
-        // Vista Quejas
-        async function loadQuejas() {
-            const html = `
-                <div class="bg-white rounded-xl p-8 border border-gray-200 max-w-2xl">
-                    <h3 class="text-xl font-semibold text-gray-800 mb-6">Reportar un Problema</h3>
-                    <form onsubmit="enviarQueja(event)" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Motivo</label>
-                            <input type="text" id="motivoQueja" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500" placeholder="Describe el problema">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
-                            <textarea id="descripcionQueja" required rows="5" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500" placeholder="Detalles del problema"></textarea>
-                        </div>
-                        <button type="submit" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
-                            Enviar Reporte
-                        </button>
-                    </form>
-                </div>
-            `;
-            document.getElementById('mainContent').innerHTML = html;
-        }
-
-        // Enviar queja
-        async function enviarQueja(event) {
-            event.preventDefault();
-            try {
-                await fetch(`${API_BASE}/usuario/quejas`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        motivo: document.getElementById('motivoQueja').value,
-                        descripcion: document.getElementById('descripcionQueja').value
-                    })
-                });
-                alert('Queja enviada exitosamente');
-                document.getElementById('motivoQueja').value = '';
-                document.getElementById('descripcionQueja').value = '';
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error al enviar la queja');
-            }
-        }
-
-        // Funciones auxiliares
-        async function aceptarSolicitud(id) {
-            try {
-                const response = await fetch(`${API_BASE}/recolector/aceptar-solicitud/${id}`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({})
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    alert('✓ ¡Solicitud #' + id + ' aceptada correctamente!');
-                    loadSolicitudes(); // Recargar lista
-                } else {
-                    alert('Error: ' + (result.error || 'No se pudo aceptar la solicitud'));
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error al aceptar la solicitud');
-            }
-        }
-
-        // ==================== FUNCIONES DE UBICACIÓN ====================
-        let ubicacionAutomatica = false;
-        let watchId = null;
-        
-        // Obtener ubicación actual y enviarla
-        async function enviarUbicacion() {
-            const msgDiv = document.getElementById('ubicacionMsg');
-            
-            if (!navigator.geolocation) {
-                msgDiv.textContent = '❌ Tu navegador no soporta geolocalización';
-                return;
-            }
-            
-            msgDiv.textContent = '📍 Obteniendo ubicación GPS...';
-            
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    const accuracy = position.coords.accuracy;
-                    
-                    // Actualizar UI
-                    document.getElementById('ubicacionLat').textContent = lat.toFixed(7);
-                    document.getElementById('ubicacionLng').textContent = lng.toFixed(7);
-                    document.getElementById('ubicacionBadge').textContent = `✓ Actualizado hace unos segundos`;
-                    
-                    try {
-                        const response = await fetch(`${API_BASE}/ubicacion`, {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                lat: lat,
-                                lng: lng,
-                                accuracy: accuracy
-                            })
-                        });
-                        
-                        if (response.ok) {
-                            msgDiv.textContent = `✓ Ubicación enviada correctamente (±${accuracy.toFixed(0)}m)`;
-                        } else {
-                            msgDiv.textContent = '⚠️ Error al enviar ubicación';
-                        }
-                    } catch (error) {
-                        console.error('Error:', error);
-                        msgDiv.textContent = '❌ Error al enviar ubicación';
-                    }
-                },
-                (error) => {
-                    let errorMsg = '';
-                    switch(error.code) {
-                        case 1: errorMsg = 'Permiso denegado. Habilita GPS en tu navegador'; break;
-                        case 2: errorMsg = 'Ubicación no disponible. Verifica tu conexión'; break;
-                        case 3: errorMsg = 'Tiempo de espera agotado'; break;
-                        default: errorMsg = 'Error desconocido';
-                    }
-                    msgDiv.textContent = `❌ ${errorMsg}`;
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                }
-            );
-        }
-        
-        // Seguimiento automático de ubicación
-        async function iniciarSeguimientoAutomatico() {
-            if (ubicacionAutomatica) {
-                // Detener seguimiento
-                ubicacionAutomatica = false;
-                if (watchId !== null) {
-                    navigator.geolocation.clearWatch(watchId);
-                }
-                document.getElementById('btnSeguimiento').textContent = '▶ Auto';
-                document.getElementById('btnSeguimiento').classList.remove('bg-yellow-100', 'text-yellow-700');
-                document.getElementById('btnSeguimiento').classList.add('bg-white', 'text-green-700');
-                document.getElementById('ubicacionMsg').textContent = '⏸️ Seguimiento detenido';
-                return;
-            }
-            
-            if (!navigator.geolocation) {
-                document.getElementById('ubicacionMsg').textContent = '❌ Tu navegador no soporta geolocalización';
-                return;
-            }
-            
-            ubicacionAutomatica = true;
-            document.getElementById('btnSeguimiento').textContent = '⏹️ Detener';
-            document.getElementById('btnSeguimiento').classList.add('bg-yellow-100', 'text-yellow-700');
-            document.getElementById('btnSeguimiento').classList.remove('bg-white', 'text-green-700');
-            document.getElementById('ubicacionMsg').textContent = '🔴 Seguimiento automático activo';
-            
-            let updateCount = 0;
-            watchId = navigator.geolocation.watchPosition(
-                async (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    const accuracy = position.coords.accuracy;
-                    
-                    updateCount++;
-                    
-                    // Actualizar UI
-                    document.getElementById('ubicacionLat').textContent = lat.toFixed(7);
-                    document.getElementById('ubicacionLng').textContent = lng.toFixed(7);
-                    document.getElementById('ubicacionBadge').textContent = `🔴 Activo (${updateCount} actualizaciones)`;
-                    
-                    // Enviar al servidor cada actualización
-                    try {
-                        await fetch(`${API_BASE}/ubicacion`, {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                lat: lat,
-                                lng: lng,
-                                accuracy: accuracy
-                            })
-                        });
-                    } catch (error) {
-                        console.error('Error enviando ubicación:', error);
-                    }
-                },
-                (error) => {
-                    console.error('Error de geolocalización:', error);
-                    document.getElementById('ubicacionMsg').textContent = '❌ Error en geolocalización';
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 30000,
-                    maximumAge: 0
-                }
-            );
         }
 
         function logout() {
