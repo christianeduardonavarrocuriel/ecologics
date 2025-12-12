@@ -1918,3 +1918,23 @@ function asignarSolucion(tipo) {
         document.querySelector('.animate-slide-in')?.remove();
     }, 4000);
 }
+
+// Función para cerrar sesión
+async function cerrarSesion() {
+    try {
+        // Llamar al endpoint de logout para cerrar sesión en el servidor
+        await fetch('/logout', {
+            method: 'GET',
+            credentials: 'include'
+        });
+    } catch (error) {
+        console.error('Error al cerrar sesión:', error);
+    }
+    
+    // Limpiar datos de sesión local
+    sessionStorage.clear();
+    localStorage.clear();
+    
+    // Redirigir a la página de inicio
+    window.location.href = '/';
+}
