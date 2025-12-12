@@ -82,14 +82,16 @@ function initLoginPage() {
 
                 showMessage(successMessage, '¡Inicio de sesión exitoso! Redirigiendo...');
                 const rol = data.rol || 'usuario';
+                // Usa destino del backend si viene; si no, mapea por rol
                 const redirectMap = {
                     admin: '/panel-admin',
                     recolector: '/panel-recolector',
                     usuario: '/panel-usuario'
                 };
+                const destino = data.redirect || redirectMap[rol] || '/panel-usuario';
 
                 setTimeout(() => {
-                    window.location.href = redirectMap[rol] || '/panel-usuario';
+                    window.location.href = destino;
                 }, 1200);
             })
             .catch(() => {

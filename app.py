@@ -35,7 +35,6 @@ else:
 # POST /registro                   -> JSON registro
 # GET  /logout                     -> Cerrar sesión
 # GET  /panel-usuario              -> indexusuario.html (Panel del usuario)
-# GET  /panel-admin                -> admin.html (Panel de administrador)
 # GET  /panel-recolector           -> panel_recolector.html (Panel del recolector)
 # GET  /panel-usuario-mejorado     -> usuario_mejorado.html (Panel mejorado del usuario)
 # GET  /test-mapa                  -> test_mapa.html (Página de test)
@@ -74,49 +73,6 @@ def derive_username(email: str, fallback_name: str):
         return fallback_name.replace(' ', '').lower()
     return f'user{int(datetime.utcnow().timestamp())}'
 
-def init_db():
-    """Inicializa la base de datos si no existe"""
-    if not os.path.exists(DATABASE):
-        conn = sqlite3.connect(DATABASE)
-        with open('base_de_datos.sql', 'r', encoding='utf-8') as f:
-            conn.executescript(f.read())
-        
-        # Insertar datos de prueba
-        cursor = conn.cursor()
-        
-        # Usuario de prueba
-        cursor.execute("""
-            INSERT INTO usuarios (rol, username, correo, nombre, apellidos, telefono, direccion, contrasena)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, ('usuario', 'juan', 'juan.perez@email.com', 'Juan', 'Pérez', '+52 55 1234 5678', 
-              'Av. Reforma 123, Col. Centro, CDMX', generate_password_hash('123456')))
-        
-        # Recolector de prueba
-        cursor.execute("""
-            INSERT INTO usuarios (rol, username, correo, nombre, apellidos, telefono, contrasena)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, ('recolector', 'carlos', 'carlos.martinez@email.com', 'Carlos', 'Martínez', 
-              '+52 55 9876 5432', generate_password_hash('123456')))
-        
-        # Solicitudes de prueba
-        solicitudes = [
-            (1, 'Av. Reforma 123, Col. Centro', 25, 'Plástico', 'Botellas y envases', '+52 55 1234 5678', 19.4326, -99.1332, 'completada', '2025-12-10'),
-            (1, 'Calle Juárez 456, Col. Juárez', 15, 'Papel y Cartón', 'Cajas de cartón', '+52 55 1234 5678', 19.4340, -99.1410, 'en-proceso', '2025-12-08'),
-            (1, 'Av. Insurgentes 789, Col. Roma', 30, 'Vidrio', 'Botellas de vidrio', '+52 55 1234 5678', 19.4200, -99.1580, 'completada', '2025-12-05'),
-            (1, 'Calle Madero 321, Col. Centro', 20, 'Mixto', 'Residuos mixtos', '+52 55 1234 5678', 19.4350, -99.1380, 'pendiente', '2025-12-03'),
-            (1, 'Av. Chapultepec 654, Col. Condesa', 40, 'Metal', 'Latas y aluminio', '+52 55 1234 5678', 19.4115, -99.1714, 'completada', '2025-12-01'),
-        ]
-        
-        for sol in solicitudes:
-            cursor.execute("""
-                INSERT INTO solicitudes_recoleccion 
-                (id_usuario, direccion, kilos, tipo_residuo, info_extra, telefono, lat, lng, estado, fecha_solicitud)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, sol)
-        
-        conn.commit()
-        conn.close()
-        print("Base de datos inicializada con datos de prueba")
 
 # ==================== RUTAS DE AUTENTICACIÓN ====================
 @app.route('/login', methods=['GET', 'POST'])
@@ -175,11 +131,6 @@ def login():
         if not user:
             return jsonify({'success': False, 'message': 'Usuario o contraseña incorrectos'}), 401
 
-        session['user_id'] = user['id_usuario']
-        session['username'] = user.get('username', user.get('correo'))
-        session['rol'] = user['rol']
-        session['nombre'] = user['nombre']
-
         # Definir redirección según rol (normalizado)
         raw_rol = user['rol'] if isinstance(user, dict) else user['rol']
         rol_norm = (raw_rol or '').strip().lower()
@@ -190,6 +141,11 @@ def login():
             rol = 'recolector'
         else:
             rol = 'usuario'
+        # Guardar sesión con el rol normalizado
+        session['user_id'] = user['id_usuario']
+        session['username'] = user.get('username', user.get('correo'))
+        session['rol'] = rol
+        session['nombre'] = user['nombre']
         redirect_map = {
             'usuario': url_for('panel_usuario'),
             'admin': url_for('panel_admin'),
@@ -300,7 +256,7 @@ def panel_usuario():
 
 @app.route('/panel-admin')
 def panel_admin():
-    # Sesión demo para el panel administrativo
+    # Sesión demo mínima si no hay sesión
     if 'user_id' not in session:
         session['user_id'] = 1
         session['username'] = 'admin'
@@ -1571,154 +1527,141 @@ def get_rutas_sugeridas():
     conn.close()
     return jsonify(result)
 
-# Obtener quejas
+
+# ==================== ENDPOINTS ADMIN ====================
+
 @app.route('/api/admin/quejas')
-def get_quejas():
-    if supabase_client:
-        try:
-            response = supabase_client.table('quejas').select('*, usuarios(nombre, apellidos, correo)').order('fecha_queja', desc=True).execute()
-            return jsonify(response.data if response.data else [])
-        except Exception as e:
-            print(f'Error consultando quejas: {e}')
-    
-    conn = get_db_connection()
-    quejas = conn.execute('''
-        SELECT q.*, u.nombre, u.apellidos, u.correo
-        FROM quejas q
-        JOIN usuarios u ON q.id_usuario = u.id_usuario
-        ORDER BY q.fecha_queja DESC
-    ''').fetchall()
-    conn.close()
-    return jsonify([dict(row) for row in quejas])
+def admin_get_quejas():
+    """Obtiene quejas con datos básicos del usuario desde Supabase."""
+    if not supabase_client:
+        return jsonify({'success': False, 'error': 'Supabase no configurado'}), 500
 
-# Obtener recolectores
-@app.route('/api/admin/recolectores')
-def get_recolectores():
-    if supabase_client:
-        try:
-            response = supabase_client.table('recolectores').select('*').execute()
-            if response.data:
-                result = []
-                for rec in response.data:
-                    # Contar asignaciones si existe la tabla
-                    try:
-                        asig_resp = supabase_client.table('asignaciones').select('id_asignacion', count='exact').eq('id_recolector', rec['id_recolector']).execute()
-                        comp_resp = supabase_client.table('asignaciones').select('id_asignacion', count='exact').eq('id_recolector', rec['id_recolector']).not_.is_('fecha_finalizacion', 'null').execute()
-                        
-                        rec['asignaciones_totales'] = asig_resp.count if hasattr(asig_resp, 'count') else len(asig_resp.data) if asig_resp.data else 0
-                        rec['completadas'] = comp_resp.count if hasattr(comp_resp, 'count') else len(comp_resp.data) if comp_resp.data else 0
-                    except:
-                        rec['asignaciones_totales'] = 0
-                        rec['completadas'] = 0
-                    
-                    result.append(rec)
-                return jsonify(result)
-        except Exception as e:
-            print(f'Error consultando recolectores: {e}')
-    
-    # Fallback a SQLite
-    conn = get_db_connection()
-    recolectores = conn.execute("SELECT * FROM usuarios WHERE rol = 'recolector'").fetchall()
-    result = []
-    for rec in recolectores:
-        asig = conn.execute('SELECT COUNT(*) as count FROM asignaciones WHERE id_recolector = ?', (rec['id_usuario'],)).fetchone()
-        comp = conn.execute('SELECT COUNT(*) as count FROM asignaciones WHERE id_recolector = ? AND fecha_finalizacion IS NOT NULL', (rec['id_usuario'],)).fetchone()
-        rec_dict = dict(rec)
-        rec_dict['asignaciones_totales'] = asig['count']
-        rec_dict['completadas'] = comp['count']
-        result.append(rec_dict)
-    conn.close()
-    return jsonify(result)
+    try:
+        response = supabase_client.table('quejas_soporte') \
+            .select('id, asunto, detalle, fecha_creacion, estado, id_usuario, usuarios(nombre, apellidos, correo)') \
+            .order('fecha_creacion', desc=True) \
+            .execute()
+        return jsonify(response.data or [])
+    except Exception as exc:
+        print(f'Error consultando quejas: {exc}')
+        return jsonify([])
 
-# Obtener vehículos
-@app.route('/api/admin/vehiculos')
-def get_vehiculos():
-    if supabase_client:
-        try:
-            response = supabase_client.table('vehiculos').select('*, usuarios(nombre, apellidos)').execute()
-            return jsonify(response.data if response.data else [])
-        except Exception as e:
-            print(f'Error consultando vehículos: {e}')
-    
-    conn = get_db_connection()
-    vehiculos = conn.execute('''
-        SELECT v.*, u.nombre, u.apellidos
-        FROM vehiculos v
-        JOIN usuarios u ON v.supervisor = u.id_usuario
-    ''').fetchall()
-    conn.close()
-    return jsonify([dict(row) for row in vehiculos])
 
-# Obtener rutas generales
-@app.route('/api/admin/rutas')
-def get_rutas_generales():
-    if supabase_client:
-        try:
-            response = supabase_client.table('rutas_generales').select('*, vehiculos(matricula, tipo)').execute()
-            if response.data:
-                result = []
-                for ruta in response.data:
-                    puntos_resp = supabase_client.table('puntos_ruta').select('*').eq('id_ruta', ruta['id_ruta']).order('orden').execute()
-                    ruta['puntos'] = puntos_resp.data if puntos_resp.data else []
-                    result.append(ruta)
-                return jsonify(result)
-        except Exception as e:
-            print(f'Error consultando rutas: {e}')
-    
-    conn = get_db_connection()
-    rutas = conn.execute('''
-        SELECT rg.*, v.matricula, v.tipo
-        FROM rutas_generales rg
-        JOIN vehiculos v ON rg.id_vehiculo = v.id_vehiculo
-    ''').fetchall()
-    
-    result = []
-    for ruta in rutas:
-        puntos = conn.execute('SELECT * FROM puntos_ruta WHERE id_ruta = ? ORDER BY orden', (ruta['id_ruta'],)).fetchall()
-        ruta_dict = dict(ruta)
-        ruta_dict['puntos'] = [dict(p) for p in puntos]
-        result.append(ruta_dict)
-    conn.close()
-    return jsonify(result)
+@app.route('/api/admin/recolectores-ubicacion')
+def admin_get_recolectores_ubicacion():
+    """Obtiene todos los recolectores activos con su última ubicación desde Supabase."""
+    if not supabase_client:
+        print("⚠️ Supabase no configurado")
+        return jsonify([]), 200
 
-# ==================== INICIAR APLICACIÓN ====================
-@app.route('/admin/init-contraseñas', methods=['POST'])
-def init_contraseñas():
-    """SOLO PARA ADMIN: Inicializa contraseñas para recolectores sin contraseña"""
-    if supabase_client:
-        try:
-            # Obtener todos los recolectores
-            recolectores = supabase_client.table('usuarios').select('*').eq('rol', 'recolector').execute()
+    try:
+        # Obtener todos los recolectores
+        response = supabase_client.table('recolectores').select('*').execute()
+        print(f"📍 Recolectores encontrados: {len(response.data or [])}")
+        
+        resultado = []
+        
+        for recolector in response.data or []:
+            id_rec = recolector.get('id_recolector')
+            lat = recolector.get('lat', 20.0871)
+            lng = recolector.get('lng', -98.7612)
             
-            if recolectores.data:
-                for recolector in recolectores.data:
-                    # Si no tiene contraseña o está vacía
-                    if not recolector.get('contrasena') or recolector.get('contrasena') == '':
-                        # Generar contraseña por defecto: 123456
-                        nueva_hash = generate_password_hash('123456')
-                        
-                        # Actualizar en Supabase
-                        supabase_client.table('usuarios').update({
-                            'contrasena': nueva_hash
-                        }).eq('id_usuario', recolector['id_usuario']).execute()
-                        
-                        print(f"✓ Contraseña agregada a {recolector.get('nombre', 'Unknown')} (ID: {recolector['id_usuario']})")
+            # Intentar obtener ubicación más reciente si existe tabla
+            try:
+                ubic_resp = supabase_client.table('ubicaciones_recolectores') \
+                    .select('lat, lng') \
+                    .eq('id_recolector', id_rec) \
+                    .order('id_ubicacion', desc=True) \
+                    .limit(1) \
+                    .execute()
                 
-                return jsonify({
-                    'success': True, 
-                    'mensaje': f'Contraseñas inicializadas para {len(recolectores.data)} recolectores',
-                    'contraseña_por_defecto': '123456'
-                })
-        except Exception as e:
-            print(f'Error inicializando contraseñas: {e}')
-            return jsonify({'success': False, 'error': str(e)}), 500
-    
-    return jsonify({'success': False, 'error': 'Supabase no está configurado'}), 500
+                if ubic_resp.data and len(ubic_resp.data) > 0:
+                    lat = ubic_resp.data[0].get('lat', lat)
+                    lng = ubic_resp.data[0].get('lng', lng)
+                    print(f"   Recolector {id_rec}: ubicación actualizada ({lat}, {lng})")
+            except Exception as e:
+                print(f"   Recolector {id_rec}: usando ubicación por defecto - {e}")
+            
+            resultado.append({
+                'id': id_rec,
+                'nombre': f"{recolector.get('nombre', 'N/A')} {recolector.get('apellido', '')}".strip(),
+                'telefono': recolector.get('telefono', ''),
+                'correo': recolector.get('correo', ''),
+                'estado': 'operativo',
+                'lat': lat,
+                'lng': lng,
+                'placa': recolector.get('placa', ''),
+                'vehiculo': recolector.get('vehiculo', '')
+            })
+        
+        print(f"✅ Devolviendo {len(resultado)} recolectores")
+        return jsonify(resultado)
+    except Exception as exc:
+        print(f'❌ Error: {exc}')
+        import traceback
+        traceback.print_exc()
+        return jsonify([]), 200
+
+
+@app.route('/api/admin/recolectores')
+def admin_get_recolectores():
+    """Lista recolectores y métricas de asignaciones desde Supabase."""
+    if not supabase_client:
+        return jsonify({'success': False, 'error': 'Supabase no configurado'}), 500
+
+    try:
+        response = supabase_client.table('recolectores').select('*').execute()
+        data = []
+        for rec in response.data or []:
+            try:
+                asig_resp = supabase_client.table('asignaciones').select('id_asignacion', count='exact').eq('id_recolector', rec['id_recolector']).execute()
+                comp_resp = supabase_client.table('asignaciones').select('id_asignacion', count='exact').eq('id_recolector', rec['id_recolector']).not_.is_('fecha_finalizacion', 'null').execute()
+                rec['asignaciones_totales'] = getattr(asig_resp, 'count', None) or len(asig_resp.data or [])
+                rec['completadas'] = getattr(comp_resp, 'count', None) or len(comp_resp.data or [])
+            except Exception:
+                rec['asignaciones_totales'] = 0
+                rec['completadas'] = 0
+            data.append(rec)
+        return jsonify(data)
+    except Exception as exc:
+        print(f'Error consultando recolectores: {exc}')
+        return jsonify({'success': False, 'error': 'No se pudieron cargar los recolectores'}), 500
+
+
+@app.route('/api/admin/vehiculos')
+def admin_get_vehiculos():
+    """Obtiene vehículos desde Supabase (si existen)."""
+    if not supabase_client:
+        return jsonify([])
+
+    try:
+        response = supabase_client.table('vehiculos').select('*').execute()
+        return jsonify(response.data or [])
+    except Exception as exc:
+        print(f'Tabla vehiculos no disponible: {exc}')
+        return jsonify([])
+
+
+@app.route('/api/admin/rutas')
+def admin_get_rutas():
+    """Obtiene rutas generales desde Supabase (si existen)."""
+    if not supabase_client:
+        return jsonify([])
+
+    try:
+        rutas_resp = supabase_client.table('rutas_generales').select('*').execute()
+        rutas = []
+        for ruta in rutas_resp.data or []:
+            puntos_resp = supabase_client.table('puntos_ruta').select('*').eq('id_ruta', ruta['id_ruta']).order('orden').execute()
+            ruta['puntos'] = puntos_resp.data or []
+            rutas.append(ruta)
+        return jsonify(rutas)
+    except Exception as exc:
+        print(f'Tabla rutas_generales no disponible: {exc}')
+        return jsonify([])
 
 if __name__ == '__main__':
     import sys
-    init_db()
-    
     # Obtener puerto de argumentos o variables de entorno, default 8080
     port = 8080
     if len(sys.argv) > 1:

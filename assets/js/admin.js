@@ -14,33 +14,60 @@ let quejas = [];
 // Cargar datos desde el backend
 async function cargarDatos() {
     try {
-        const [vehiculosRes, solicitudesRes, rutasRes, recolectoresRes, quejasRes] = await Promise.all([
-            fetch('/api/admin/vehiculos'),
-            fetch('/api/usuario/solicitudes'),
-            fetch('/api/admin/rutas'),
-            fetch('/api/admin/recolectores'),
-            fetch('/api/admin/quejas')
-        ]);
+        console.log('📥 Iniciando carga de datos...');
         
-        vehiculos = await vehiculosRes.json();
-        solicitudes = await solicitudesRes.json();
-        const rutasCompletas = await rutasRes.json();
-        recolectores = await recolectoresRes.json();
-        quejas = await quejasRes.json();
+        // Cargar solo lo esencial primero
+        const recolectoresUbicRes = await fetch('/api/admin/recolectores-ubicacion');
+        const recolectoresUbic = await recolectoresUbicRes.json();
         
-        // Transformar rutas al formato esperado
-        rutasData = rutasCompletas.map(ruta => ({
-            id: ruta.id_ruta,
-            nombre: `Ruta ${ruta.numero_ruta}`,
-            descripcion: ruta.descripcion || '',
-            vehiculo: ruta.matricula || 'N/A',
-            puntos: ruta.puntos || []
+        console.log('✅ Recolectores recibidos:', recolectoresUbic);
+        
+        // Transformar directamente a vehiculos para el mapa
+        vehiculos = recolectoresUbic.map(r => ({
+            id: r.id,
+            matricula: r.nombre,  // Nombre del recolector
+            conductor: r.correo || r.telefono || 'N/A',
+            estado: r.estado || 'operativo',
+            x: 50 + (Math.random() - 0.5) * 50,
+            y: 50 + (Math.random() - 0.5) * 50,
+            ruta: r.vehiculo || 'Recolector',
+            solicitud: null,
+            lat: r.lat,
+            lng: r.lng,
+            id_recolector: r.id,
+            telefono: r.telefono,
+            correo: r.correo,
+            placa: r.placa
         }));
         
-        console.log('Datos cargados exitosamente');
+        console.log('🚗 Vehículos transformados:', vehiculos);
+        
+        // Cargar resto de datos en background
+        try {
+            const [solicitudesRes, recolectoresRes, quejasRes] = await Promise.all([
+                fetch('/api/usuario/solicitudes'),
+                fetch('/api/admin/recolectores'),
+                fetch('/api/admin/quejas')
+            ]);
+            
+            solicitudes = await solicitudesRes.json();
+            recolectores = await recolectoresRes.json();
+            quejas = await quejasRes.json();
+            
+            console.log('📊 Datos secundarios cargados');
+        } catch (e) {
+            console.warn('⚠️ No se pudieron cargar datos secundarios:', e);
+        }
+        
+        console.log('✅ Carga de datos completada');
+        return true;
     } catch (error) {
-        console.error('Error cargando datos:', error);
-        // Mantener arrays vacíos si falla la carga
+        console.error('❌ Error cargando datos:', error);
+        vehiculos = [];
+        solicitudes = [];
+        recolectores = [];
+        quejas = [];
+        return false;
     }
 }
 
@@ -184,17 +211,31 @@ function changeView(view) {
 // ========== SEGUIMIENTO DE VEHÍCULOS ==========
 
 function initSeguimiento() {
+    console.log('🗺️ Inicializando seguimiento de vehículos...');
     const mapContainer = document.getElementById('mapContainer');
-    if (!mapContainer) return;
+    console.log('mapContainer:', mapContainer);
+    
+    if (!mapContainer) {
+        console.error('❌ mapContainer no encontrado');
+        return;
+    }
 
+    console.log('📍 Llamando renderVehicles()...');
     renderVehicles();
     renderVehicleList();
     startVehicleAnimation();
+    console.log('✅ Seguimiento inicializado');
 }
 
 function renderVehicles() {
     const mapContainer = document.getElementById('mapContainer');
-    if (!mapContainer) return;
+    if (!mapContainer) {
+        console.log('❌ mapContainer no encontrado');
+        return;
+    }
+
+    console.log('🚗 Renderizando vehículos. Total:', vehiculos.length);
+    console.log('Vehículos:', vehiculos);
 
     // Limpiar vehículos anteriores
     const existingVehicles = mapContainer.querySelectorAll('.vehicle-marker');
@@ -205,6 +246,8 @@ function renderVehicles() {
         const marker = createVehicleMarker(vehiculo);
         mapContainer.appendChild(marker);
     });
+    
+    console.log('✅ Vehículos renderizados');
 }
 
 function createVehicleMarker(vehiculo) {
