@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 from dotenv import load_dotenv
 from supabase import Client, create_client
@@ -12,14 +11,21 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = 'tu_clave_secreta_super_segura_12345'
 
-DATABASE = 'ecologics.db'
 MAPBOX_TOKEN = os.getenv('MAPBOX_TOKEN', 'pk.eyJ1Ijoic3dldGllYWxpZW4iLCJhIjoiY21qMjN5dGZ6MGVqZTNkcHh5cjJrY3BhcCJ9.Tx1s_wXzp4O4kJmoJYgXhw')
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_ANON_KEY')
 supabase_client: Client | None = None
 
 if SUPABASE_URL and SUPABASE_KEY:
-    supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    try:
+        supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print(f"✅ Cliente Supabase inicializado: {SUPABASE_URL}")
+    except Exception as e:
+        print(f"❌ Error inicializando Supabase: {e}")
+        supabase_client = None
+else:
+    print("⚠️  Supabase no configurado: SUPABASE_URL o SUPABASE_KEY faltantes")
+    print("❌ La aplicación NO funcionará sin Supabase")
 
 # ==================== RUTAS DE LA APLICACIÓN ====================
 # GET  /                           -> index.html (Página de inicio)
@@ -46,12 +52,6 @@ if SUPABASE_URL and SUPABASE_KEY:
 # ==================== FIN DE RUTAS ====================
 
 # ==================== FUNCIONES DE BASE DE DATOS ====================
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
 def get_supabase():
     if not supabase_client:
         raise RuntimeError('Supabase no está configurado. Añade SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY al entorno.')
@@ -171,16 +171,6 @@ def login():
             except Exception as exc:
                 print(f"Error consultando Supabase: {exc}")
                 return jsonify({'success': False, 'message': 'No se pudo validar al usuario'}), 500
-        else:
-            conn = get_db_connection()
-            db_user = conn.execute(
-                'SELECT * FROM usuarios WHERE correo = ? OR username = ?',
-                (identifier, identifier)
-            ).fetchone()
-            conn.close()
-
-            if db_user and check_password_hash(db_user['contrasena'], password):
-                user = db_user
 
         if not user:
             return jsonify({'success': False, 'message': 'Usuario o contraseña incorrectos'}), 401
@@ -189,7 +179,25 @@ def login():
         session['username'] = user.get('username', user.get('correo'))
         session['rol'] = user['rol']
         session['nombre'] = user['nombre']
-        return jsonify({'success': True, 'rol': user['rol']})
+
+        # Definir redirección según rol (normalizado)
+        raw_rol = user['rol'] if isinstance(user, dict) else user['rol']
+        rol_norm = (raw_rol or '').strip().lower()
+        # Mapear posibles variantes
+        if rol_norm in ('admin', 'administrator', 'administrador'): 
+            rol = 'admin'
+        elif rol_norm in ('recolector', 'collector'):
+            rol = 'recolector'
+        else:
+            rol = 'usuario'
+        redirect_map = {
+            'usuario': url_for('panel_usuario'),
+            'admin': url_for('panel_admin'),
+            'recolector': url_for('panel_recolector')
+        }
+        destino = redirect_map.get(rol, url_for('panel_usuario'))
+
+        return jsonify({'success': True, 'rol': rol, 'redirect': destino})
 
     return render_template('inicio_sesion.html')
 
@@ -375,21 +383,7 @@ def get_perfil():
                     })
         except Exception as e:
             print(f'Error consultando perfil en Supabase: {e}')
-    
-    # Fallback a SQLite
-    conn = get_db_connection()
-    user = conn.execute('SELECT * FROM usuarios WHERE id_usuario = ?', (session['user_id'],)).fetchone()
-    conn.close()
-    
-    if user:
-        return jsonify({
-            'nombre': user['nombre'],
-            'apellidos': user['apellidos'],
-            'email': user['correo'],
-            'telefono': user['telefono'],
-            'direccion': user['direccion'],
-            'username': user['username']
-        })
+            return jsonify({'error': 'Error al consultar perfil'}), 500
     
     return jsonify({'error': 'Usuario no encontrado'}), 404
 
@@ -445,18 +439,7 @@ def actualizar_perfil():
             print(f'Error actualizando perfil en Supabase: {e}')
             return jsonify({'success': False, 'error': str(e)}), 500
     
-    # Fallback a SQLite
-    conn = get_db_connection()
-    conn.execute('''
-        UPDATE usuarios 
-        SET nombre = ?, apellidos = ?, telefono = ?, correo = ?, direccion = ?
-        WHERE id_usuario = ?
-    ''', (data.get('nombre'), data.get('apellidos'), data.get('telefono'), 
-          data.get('email'), data.get('direccion'), session['user_id']))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'message': 'Perfil actualizado correctamente'})
+    return jsonify({'success': False, 'error': 'Supabase no configurado'}), 500
 
 # Obtener solicitudes del usuario
 @app.route('/api/usuario/solicitudes')
@@ -479,24 +462,9 @@ def get_solicitudes():
             return jsonify(response.data if response.data else [])
         except Exception as e:
             print(f'Error consultando Supabase: {e}')
+            return jsonify({'error': 'Error al consultar solicitudes'}), 500
     
-    # Fallback a SQLite
-    conn = get_db_connection()
-    if filtro == 'todas':
-        solicitudes = conn.execute('''
-            SELECT * FROM solicitudes_recoleccion 
-            WHERE id_usuario = ?
-            ORDER BY fecha_solicitud DESC
-        ''', (session['user_id'],)).fetchall()
-    else:
-        solicitudes = conn.execute('''
-            SELECT * FROM solicitudes_recoleccion 
-            WHERE estado = ? AND id_usuario = ?
-            ORDER BY fecha_solicitud DESC
-        ''', (filtro, session['user_id'])).fetchall()
-    conn.close()
-    
-    return jsonify([dict(row) for row in solicitudes])
+    return jsonify({'error': 'Supabase no configurado'}), 500
 
 # Crear nueva solicitud
 @app.route('/api/usuario/solicitudes', methods=['POST'])
@@ -505,51 +473,46 @@ def crear_solicitud():
         session['user_id'] = 1  # Usuario demo
     
     data = request.get_json()
-    
-    payload = {
-        'id_usuario': session['user_id'],
-        'direccion': data.get('direccion', ''),
-        'kilos': data.get('kilos', 0),
-        'tipo_residuo': data.get('tipoResiduo', ''),
-        'info_extra': data.get('informacion', ''),
-        'telefono': data.get('telefono', ''),
-        'lat': data.get('lat'),
-        'lng': data.get('lng'),
-        'estado': 'pendiente'
-    }
+    print(f"\n📝 Creando solicitud para usuario {session['user_id']}")
+    print(f"   Datos recibidos: {data}")
     
     # Intentar con Supabase primero
     if supabase_client:
+        print(f"   🔄 Intentando guardar en Supabase...")
         try:
+            # Payload para Supabase - mapear nombres de columnas (con espacios)
+            # Convertir strings vacíos a None para campos numéricos
+            payload = {
+                'id_usuario': session['user_id'],
+                'calle': data.get('calle', '') or None,
+                'numero exterior': int(data.get('numero_exterior', '') or 0) if data.get('numero_exterior', '').strip() else None,
+                'colonia': data.get('colonia', '') or None,
+                'codigo postal': int(data.get('codigo_postal', '') or 0) if data.get('codigo_postal', '').strip() else None,
+                'referencias': data.get('referencias', '') or None,
+                'kilos': data.get('kilos', 0),
+                'tipo_residuo': data.get('tipoResiduo', ''),
+                'info_extra': data.get('informacion', '') or None,
+                'lat': data.get('lat'),
+                'lng': data.get('lng'),
+                'estado': 'pendiente'
+            }
+            print(f"   📦 Payload: {payload}")
             response = supabase_client.table('solicitudes_recoleccion').insert(payload).execute()
+            print(f"   ✅ Respuesta Supabase: {response}")
             if response.data:
-                return jsonify({'success': True, 'id_solicitud': response.data[0].get('id_solicitud')})
+                solicitud_id = response.data[0].get('id_solicitud')
+                print(f"   ✓ Solicitud guardada en Supabase con ID: {solicitud_id}")
+                return jsonify({'success': True, 'id_solicitud': solicitud_id})
+            else:
+                print(f"   ⚠️  Supabase no devolvió datos")
+                return jsonify({'success': False, 'error': 'No se pudo crear la solicitud'}), 500
         except Exception as e:
-            print(f'Error insertando en Supabase: {e}')
+            print(f"   ❌ Error en Supabase: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
     
-    # Fallback a SQLite
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO solicitudes_recoleccion 
-        (id_usuario, direccion, kilos, tipo_residuo, info_extra, telefono, lat, lng, estado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
-    ''', (
-        session['user_id'],
-        payload['direccion'],
-        payload['kilos'],
-        payload['tipo_residuo'],
-        payload['info_extra'],
-        payload['telefono'],
-        payload['lat'],
-        payload['lng']
-    ))
-    
-    id_solicitud = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'id_solicitud': id_solicitud})
+    return jsonify({'success': False, 'error': 'Supabase no configurado'}), 500
 
 # ==================== ENDPOINTS DE RECOLECTOR ====================
 
@@ -627,12 +590,11 @@ def aceptar_solicitud(id_solicitud):
     # Intentar con Supabase primero
     if supabase_client:
         try:
-            # Crear asignación
+            # Crear asignación (sin columna 'estado' que no existe en Supabase)
             asignacion = {
                 'id_recolector': session['user_id'],
                 'id_solicitud': id_solicitud,
-                'fecha_asignacion': datetime.now().isoformat(),
-                'estado': 'asignada'
+                'fecha_asignacion': datetime.now().isoformat()
             }
             supabase_client.table('asignaciones').insert(asignacion).execute()
             
@@ -674,6 +636,265 @@ def aceptar_solicitud(id_solicitud):
         return jsonify({'success': False, 'error': str(e)}), 400
     finally:
         conn.close()
+
+# Obtener mis recolecciones asignadas
+@app.route('/api/recolector/mis-recolecciones')
+def get_mis_recolecciones():
+    if 'user_id' not in session:
+        session['user_id'] = 2  # Recolector demo
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            # Obtener solicitudes asignadas a este recolector que NO estén completadas
+            response = supabase_client.table('asignaciones') \
+                .select('id_solicitud, solicitudes_recoleccion(id_solicitud, id_usuario, tipo_residuo, kilos, calle, "numero exterior", colonia, "codigo postal", referencias, lat, lng, info_extra, estado, fecha_solicitud)') \
+                .eq('id_recolector', session['user_id']) \
+                .execute()
+            
+            if response.data:
+                recolecciones = []
+                for item in response.data:
+                    sol = item.get('solicitudes_recoleccion', {})
+                    # Solo mostrar las que están en proceso (no completadas)
+                    if sol.get('estado') == 'en-proceso':
+                        recolecciones.append({
+                            'id_solicitud': sol.get('id_solicitud'),
+                            'tipo_residuo': sol.get('tipo_residuo'),
+                            'kilos': sol.get('kilos'),
+                            'calle': sol.get('calle'),
+                            'numero_exterior': sol.get('numero exterior'),
+                            'colonia': sol.get('colonia'),
+                            'codigo_postal': sol.get('codigo postal'),
+                            'referencias': sol.get('referencias'),
+                            'lat': sol.get('lat'),
+                            'lng': sol.get('lng'),
+                            'info_extra': sol.get('info_extra'),
+                            'estado': sol.get('estado'),
+                            'fecha_solicitud': sol.get('fecha_solicitud')
+                        })
+                return jsonify(recolecciones)
+            return jsonify([])
+        except Exception as e:
+            print(f'Error obteniendo mis recolecciones: {e}')
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    recolecciones = conn.execute('''
+        SELECT sr.* FROM solicitudes_recoleccion sr
+        INNER JOIN asignaciones a ON sr.id_solicitud = a.id_solicitud
+        WHERE a.id_recolector = ? AND sr.estado = 'en-proceso'
+        ORDER BY sr.fecha_solicitud DESC
+    ''', (session['user_id'],)).fetchall()
+    conn.close()
+    
+    return jsonify([dict(row) for row in recolecciones])
+
+# Finalizar recolección
+@app.route('/api/recolector/finalizar-recoleccion', methods=['POST'])
+def finalizar_recoleccion():
+    if 'user_id' not in session:
+        session['user_id'] = 2  # Recolector demo
+    
+    try:
+        id_solicitud = request.form.get('id_solicitud', type=int)
+        fecha_finalizacion = request.form.get('fecha_finalizacion')
+        tipo_evidencia = request.form.get('tipo_evidencia')
+        notas = request.form.get('notas', '')
+        lat_final = request.form.get('lat_final', type=float)
+        lng_final = request.form.get('lng_final', type=float)
+        
+        print(f'📝 Finalizando recolección #{id_solicitud} - Tipo: {tipo_evidencia}')
+        
+        # Intentar con Supabase primero
+        if supabase_client:
+            try:
+                # Actualizar asignación con datos de finalización
+                update_data = {
+                    'fecha_finalizacion': fecha_finalizacion,
+                    'evidencia': tipo_evidencia,
+                    'lat_final': lat_final,
+                    'lng_final': lng_final
+                }
+                
+                supabase_client.table('asignaciones').update(update_data) \
+                    .eq('id_solicitud', id_solicitud) \
+                    .eq('id_recolector', session['user_id']) \
+                    .execute()
+                
+                # Actualizar estado de solicitud según el tipo de evidencia
+                if tipo_evidencia in ['completada', 'completada-usuario']:
+                    nuevo_estado = 'completada'
+                else:
+                    nuevo_estado = 'pendiente-revision'  # Para fallos, requiere revisión
+                
+                supabase_client.table('solicitudes_recoleccion').update({'estado': nuevo_estado}) \
+                    .eq('id_solicitud', id_solicitud) \
+                    .execute()
+                
+                # Si es un fallo, crear nueva asignación para reintentar después
+                if tipo_evidencia not in ['completada', 'completada-usuario']:
+                    # Cambiar a estado 'pendiente' para que otro recolector pueda aceptarla
+                    supabase_client.table('solicitudes_recoleccion').update({'estado': 'pendiente'}) \
+                        .eq('id_solicitud', id_solicitud) \
+                        .execute()
+                    
+                    print(f'ℹ️ Recolección #{id_solicitud} marcada para reintentar (tipo: {tipo_evidencia})')
+                
+                # Registrar la actividad en la tabla de historial
+                if nuevo_estado == 'completada':
+                    solicitud_data = supabase_client.table('solicitudes_recoleccion').select('*').eq('id_solicitud', id_solicitud).execute()
+                    if solicitud_data.data:
+                        sol = solicitud_data.data[0]
+                        duracion = None
+                        if sol.get('fecha_solicitud'):
+                            try:
+                                # Manejo robusto de zonas horarias
+                                fecha_solicitud_str = sol['fecha_solicitud']
+                                
+                                # Asegurar formato ISO con zona horaria
+                                if fecha_solicitud_str.endswith('Z'):
+                                    fecha_solicitud_str = fecha_solicitud_str.replace('Z', '+00:00')
+                                
+                                fecha_inicio = datetime.fromisoformat(fecha_solicitud_str)
+                                
+                                # Manejar fecha_finalizacion
+                                fecha_fin_str = fecha_finalizacion
+                                if isinstance(fecha_fin_str, str):
+                                    if fecha_fin_str.endswith('Z'):
+                                        fecha_fin_str = fecha_fin_str.replace('Z', '+00:00')
+                                    # Si es naive (sin zona horaria), agregar UTC
+                                    if '+' not in fecha_fin_str and 'Z' not in fecha_fin_str:
+                                        fecha_fin_str += '+00:00'
+                                    fecha_fin = datetime.fromisoformat(fecha_fin_str)
+                                else:
+                                    fecha_fin = fecha_fin_str
+                                
+                                # Ambos deberían ser aware ahora, pero si uno es naive, convertir
+                                if fecha_inicio.tzinfo is None:
+                                    fecha_inicio = fecha_inicio.replace(tzinfo=timezone.utc)
+                                if fecha_fin.tzinfo is None:
+                                    fecha_fin = fecha_fin.replace(tzinfo=timezone.utc)
+                                
+                                duracion = (fecha_fin - fecha_inicio).total_seconds() / 3600
+                                print(f'⏱️ Duración calculada: {duracion:.2f} horas')
+                            except Exception as e:
+                                print(f'⚠️ Error calculando duración: {e}')
+                                duracion = None
+                        
+                        actividad_data = {
+                            'id_solicitud': id_solicitud,
+                            'id_usuario': sol.get('id_usuario'),
+                            'id_recolector': session['user_id'],
+                            'kilos_recolectados': sol.get('kilos', 0),
+                            'tipo_residuo': sol.get('tipo_residuo', ''),
+                            'estado_recoleccion': 'completada',
+                            'tipo_evidencia': tipo_evidencia,
+                            'notas': notas,
+                            'lat_final': lat_final,
+                            'lng_final': lng_final,
+                            'fecha_inicio': sol.get('fecha_solicitud'),
+                            'fecha_finalizacion': fecha_finalizacion,
+                            'duracion_horas': duracion
+                        }
+                        
+                        supabase_client.table('actividad_recolecciones').insert(actividad_data).execute()
+                        print(f'📊 Actividad registrada para solicitud #{id_solicitud}')
+                
+                print(f'✅ Recolección #{id_solicitud} finalizada como {nuevo_estado}')
+                return jsonify({'success': True, 'mensaje': 'Recolección finalizada correctamente'})
+                
+            except Exception as e:
+                print(f'❌ Error en Supabase: {e}')
+                return jsonify({'success': False, 'error': str(e)}), 400
+        
+        # Fallback a SQLite
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Actualizar asignación
+            nuevo_estado = 'completada' if tipo_evidencia in ['completada', 'completada-usuario'] else 'pendiente-revision'
+            
+            cursor.execute('''
+                UPDATE asignaciones 
+                SET fecha_finalizacion = ?, evidencia = ?, lat_final = ?, lng_final = ?
+                WHERE id_solicitud = ? AND id_recolector = ?
+            ''', (fecha_finalizacion, tipo_evidencia, lat_final, lng_final, id_solicitud, session['user_id']))
+            
+            # Actualizar solicitud
+            cursor.execute('''
+                UPDATE solicitudes_recoleccion 
+                SET estado = ?
+                WHERE id_solicitud = ?
+            ''', (nuevo_estado, id_solicitud))
+            
+            conn.commit()
+            return jsonify({'success': True, 'mensaje': 'Recolección finalizada correctamente'})
+            
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        print(f'Error: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# Enviar ubicación del recolector
+@app.route('/api/recolector/enviar-ubicacion', methods=['POST'])
+def enviar_ubicacion_recolector():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'No autenticado'}), 401
+    
+    try:
+        data = request.get_json()
+        lat = data.get('lat')
+        lng = data.get('lng')
+        
+        if not lat or not lng:
+            return jsonify({'success': False, 'error': 'Coordenadas inválidas'}), 400
+        
+        print(f'📍 Recolector #{session["user_id"]} enviando ubicación: {lat}, {lng}')
+        
+        # Intentar con Supabase primero
+        if supabase_client:
+            try:
+                supabase_client.table('ubicaciones_recolectores').insert({
+                    'id_recolector': session['user_id'],
+                    'lat': lat,
+                    'lng': lng
+                }).execute()
+                
+                print(f'✅ Ubicación guardada en Supabase')
+                return jsonify({'success': True, 'mensaje': 'Ubicación enviada correctamente'})
+            except Exception as e:
+                print(f'❌ Error en Supabase: {e}')
+                return jsonify({'success': False, 'error': str(e)}), 400
+        
+        # Fallback a SQLite
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute('''
+                INSERT INTO ubicaciones_recolectores (id_recolector, lat, lng)
+                VALUES (?, ?, ?)
+            ''', (session['user_id'], lat, lng))
+            conn.commit()
+            print(f'✅ Ubicación guardada en SQLite')
+            return jsonify({'success': True, 'mensaje': 'Ubicación enviada correctamente'})
+        except Exception as e:
+            conn.rollback()
+            print(f'❌ Error en SQLite: {e}')
+            return jsonify({'success': False, 'error': str(e)}), 400
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        print(f'❌ Error general: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 # Actualizar estado de solicitud
 @app.route('/api/recolector/actualizar-estado/<int:id_solicitud>', methods=['POST'])
@@ -803,13 +1024,34 @@ def get_estadisticas():
             comp_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'completada').eq('id_usuario', session['user_id']).execute()
             completadas = comp_resp.count if hasattr(comp_resp, 'count') else len(comp_resp.data)
             
-            # Total de kilos
-            kilos_resp = supabase_client.table('solicitudes_recoleccion').select('kilos').eq('estado', 'completada').eq('id_usuario', session['user_id']).execute()
-            total_kilos = sum(row.get('kilos', 0) for row in kilos_resp.data) if kilos_resp.data else 0
+            # Total de kilos (desde actividad_recolecciones - más confiable)
+            kilos_resp = supabase_client.table('actividad_recolecciones').select('kilos_recolectados').eq('id_usuario', session['user_id']).eq('estado_recoleccion', 'completada').execute()
+            total_kilos = sum(row.get('kilos_recolectados', 0) for row in kilos_resp.data) if kilos_resp.data else 0
             
-            # Actividad reciente
-            actividad_resp = supabase_client.table('solicitudes_recoleccion').select('*').eq('id_usuario', session['user_id']).order('fecha_solicitud', desc=True).limit(4).execute()
+            # Actividad reciente detallada (últimas 8 recolecciones completadas)
+            actividad_resp = supabase_client.table('actividad_recolecciones') \
+                .select('id_actividad, id_solicitud, kilos_recolectados, tipo_residuo, tipo_evidencia, fecha_finalizacion, duracion_horas') \
+                .eq('id_usuario', session['user_id']) \
+                .order('fecha_finalizacion', desc=True) \
+                .limit(8) \
+                .execute()
             actividad = actividad_resp.data if actividad_resp.data else []
+            
+            # Estadísticas por tipo de residuo
+            residuo_resp = supabase_client.table('actividad_recolecciones') \
+                .select('tipo_residuo, kilos_recolectados', count='exact') \
+                .eq('id_usuario', session['user_id']) \
+                .eq('estado_recoleccion', 'completada') \
+                .execute()
+            
+            residuos_stats = {}
+            if residuo_resp.data:
+                for row in residuo_resp.data:
+                    tipo = row.get('tipo_residuo', 'Desconocido')
+                    if tipo not in residuos_stats:
+                        residuos_stats[tipo] = {'kilos': 0, 'cantidad': 0}
+                    residuos_stats[tipo]['kilos'] += row.get('kilos_recolectados', 0)
+                    residuos_stats[tipo]['cantidad'] += 1
             
             return jsonify({
                 'total': total,
@@ -817,7 +1059,8 @@ def get_estadisticas():
                 'en_proceso': en_proceso,
                 'completadas': completadas,
                 'total_kilos': round(total_kilos, 2),
-                'actividad': actividad
+                'actividad': actividad,
+                'residuos_stats': residuos_stats
             })
         except Exception as e:
             print(f'Error consultando estadísticas en Supabase: {e}')
@@ -829,13 +1072,133 @@ def get_estadisticas():
     pendientes = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'pendiente' AND id_usuario = ?", (session['user_id'],)).fetchone()['count']
     en_proceso = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'en-proceso' AND id_usuario = ?", (session['user_id'],)).fetchone()['count']
     completadas = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'completada' AND id_usuario = ?", (session['user_id'],)).fetchone()['count']
-    total_kilos = conn.execute("SELECT SUM(kilos) as total FROM solicitudes_recoleccion WHERE estado = 'completada' AND id_usuario = ?", (session['user_id'],)).fetchone()['total'] or 0
-    actividad = conn.execute('SELECT id_solicitud, fecha_solicitud, estado, tipo_residuo FROM solicitudes_recoleccion WHERE id_usuario = ? ORDER BY fecha_solicitud DESC LIMIT 4', (session['user_id'],)).fetchall()
+    
+    # Kilos desde actividad
+    total_kilos = conn.execute("SELECT SUM(kilos_recolectados) as total FROM actividad_recolecciones WHERE id_usuario = ? AND estado_recoleccion = 'completada'", (session['user_id'],)).fetchone()['total'] or 0
+    
+    # Actividad reciente
+    actividad = conn.execute('''
+        SELECT id_actividad, id_solicitud, kilos_recolectados, tipo_residuo, tipo_evidencia, fecha_finalizacion, duracion_horas 
+        FROM actividad_recolecciones 
+        WHERE id_usuario = ? 
+        ORDER BY fecha_finalizacion DESC 
+        LIMIT 8
+    ''', (session['user_id'],)).fetchall()
+    
+    # Estadísticas por tipo de residuo
+    residuos_data = conn.execute('''
+        SELECT tipo_residuo, COUNT(*) as cantidad, SUM(kilos_recolectados) as kilos 
+        FROM actividad_recolecciones 
+        WHERE id_usuario = ? AND estado_recoleccion = 'completada'
+        GROUP BY tipo_residuo
+    ''', (session['user_id'],)).fetchall()
+    
+    residuos_stats = {row['tipo_residuo']: {'cantidad': row['cantidad'], 'kilos': row['kilos']} for row in residuos_data}
     
     conn.close()
     
     return jsonify({
         'total': total,
+        'pendientes': pendientes,
+        'en_proceso': en_proceso,
+        'completadas': completadas,
+        'total_kilos': round(total_kilos, 2),
+        'actividad': [dict(row) for row in actividad],
+        'residuos_stats': residuos_stats
+    })
+
+# Estadísticas del recolector
+@app.route('/api/recolector/estadisticas')
+def get_estadisticas_recolector():
+    if 'user_id' not in session:
+        session['user_id'] = 2  # Recolector demo
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            # Contar solicitudes disponibles (pendientes)
+            pend_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'pendiente').execute()
+            pendientes = pend_resp.count if hasattr(pend_resp, 'count') else len(pend_resp.data)
+            
+            # En proceso (asignadas a este recolector)
+            proc_resp = supabase_client.table('asignaciones') \
+                .select('id_solicitud, solicitudes_recoleccion(estado)', count='exact') \
+                .eq('id_recolector', session['user_id']) \
+                .execute()
+            
+            en_proceso = 0
+            for item in proc_resp.data if proc_resp.data else []:
+                sol = item.get('solicitudes_recoleccion', {})
+                if sol.get('estado') == 'en-proceso':
+                    en_proceso += 1
+            
+            # Completadas por este recolector
+            comp_resp = supabase_client.table('actividad_recolecciones') \
+                .select('id_actividad', count='exact') \
+                .eq('id_recolector', session['user_id']) \
+                .eq('estado_recoleccion', 'completada') \
+                .execute()
+            completadas = comp_resp.count if hasattr(comp_resp, 'count') else len(comp_resp.data)
+            
+            # Total de kilos recolectados por este recolector
+            kilos_resp = supabase_client.table('actividad_recolecciones') \
+                .select('kilos_recolectados') \
+                .eq('id_recolector', session['user_id']) \
+                .eq('estado_recoleccion', 'completada') \
+                .execute()
+            total_kilos = sum(row.get('kilos_recolectados', 0) for row in kilos_resp.data) if kilos_resp.data else 0
+            
+            # Actividad reciente del recolector (últimas 8 completadas)
+            actividad_resp = supabase_client.table('actividad_recolecciones') \
+                .select('id_actividad, id_solicitud, kilos_recolectados, tipo_residuo, tipo_evidencia, fecha_finalizacion') \
+                .eq('id_recolector', session['user_id']) \
+                .order('fecha_finalizacion', desc=True) \
+                .limit(8) \
+                .execute()
+            actividad = actividad_resp.data if actividad_resp.data else []
+            
+            return jsonify({
+                'pendientes': pendientes,
+                'en_proceso': en_proceso,
+                'completadas': completadas,
+                'total_kilos': round(total_kilos, 2),
+                'actividad': actividad
+            })
+        except Exception as e:
+            print(f'Error consultando estadísticas recolector en Supabase: {e}')
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    
+    pendientes = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'pendiente'").fetchone()['count']
+    
+    en_proceso = conn.execute('''
+        SELECT COUNT(*) as count FROM solicitudes_recoleccion sr
+        INNER JOIN asignaciones a ON sr.id_solicitud = a.id_solicitud
+        WHERE a.id_recolector = ? AND sr.estado = 'en-proceso'
+    ''', (session['user_id'],)).fetchone()['count']
+    
+    completadas = conn.execute('''
+        SELECT COUNT(*) as count FROM actividad_recolecciones
+        WHERE id_recolector = ? AND estado_recoleccion = 'completada'
+    ''', (session['user_id'],)).fetchone()['count']
+    
+    total_kilos = conn.execute('''
+        SELECT SUM(kilos_recolectados) as total FROM actividad_recolecciones
+        WHERE id_recolector = ? AND estado_recoleccion = 'completada'
+    ''', (session['user_id'],)).fetchone()['total'] or 0
+    
+    actividad = conn.execute('''
+        SELECT id_actividad, id_solicitud, kilos_recolectados, tipo_residuo, tipo_evidencia, fecha_finalizacion
+        FROM actividad_recolecciones
+        WHERE id_recolector = ?
+        ORDER BY fecha_finalizacion DESC
+        LIMIT 8
+    ''', (session['user_id'],)).fetchall()
+    
+    conn.close()
+    
+    return jsonify({
         'pendientes': pendientes,
         'en_proceso': en_proceso,
         'completadas': completadas,
@@ -965,55 +1328,96 @@ def get_seguimiento(id_solicitud):
     if 'user_id' not in session:
         session['user_id'] = 1  # Usuario demo
     
-    lat, lng = 19.4326, -99.1332  # Valores por defecto
+    # Valores por defecto
+    recolector_info = {
+        'nombre': 'Sin asignar',
+        'telefono': 'N/A',
+        'vehiculo': 'N/A',
+        'placas': 'N/A'
+    }
+    recolector_lat, recolector_lng = None, None
+    usuario_lat, usuario_lng = 20.082, -98.363
+    distancia = 0
+    tiempo_estimado = 0
     
-    # Intentar obtener ubicación desde Supabase
+    # Intentar obtener desde Supabase
     if supabase_client:
         try:
-            # Obtener última ubicación del recolector asignado a esta solicitud
-            asig_resp = supabase_client.table('asignaciones').select('id_recolector').eq('id_solicitud', id_solicitud).execute()
+            # Obtener ubicación del usuario desde la solicitud
+            sol_resp = supabase_client.table('solicitudes_recoleccion') \
+                .select('lat, lng') \
+                .eq('id_solicitud', id_solicitud) \
+                .execute()
+            
+            if sol_resp.data and len(sol_resp.data) > 0:
+                usuario_lat = sol_resp.data[0].get('lat', usuario_lat)
+                usuario_lng = sol_resp.data[0].get('lng', usuario_lng)
+            
+            # Obtener asignación con info del recolector
+            asig_resp = supabase_client.table('asignaciones') \
+                .select('id_recolector, recolectores(nombre, apellido, telefono, vehiculo, placa)') \
+                .eq('id_solicitud', id_solicitud) \
+                .execute()
             
             if asig_resp.data and len(asig_resp.data) > 0:
-                id_recolector = asig_resp.data[0]['id_recolector']
+                asignacion = asig_resp.data[0]
+                id_recolector = asignacion['id_recolector']
+                rec_data = asignacion.get('recolectores', {})
                 
-                ubic_resp = supabase_client.table('ubicaciones_recolectores').select('lat, lng').eq('id_recolector', id_recolector).order('timestamp', desc=True).limit(1).execute()
+                # Actualizar info del recolector
+                if rec_data:
+                    recolector_info['nombre'] = f"{rec_data.get('nombre', '')} {rec_data.get('apellido', '')}".strip()
+                    recolector_info['telefono'] = rec_data.get('telefono', 'N/A')
+                    recolector_info['vehiculo'] = rec_data.get('vehiculo', 'N/A')
+                    recolector_info['placas'] = rec_data.get('placa', 'N/A')
+                
+                # Obtener última ubicación del recolector
+                ubic_resp = supabase_client.table('ubicaciones_recolectores') \
+                    .select('lat, lng') \
+                    .eq('id_recolector', id_recolector) \
+                    .order('id_ubicacion', desc=True) \
+                    .limit(1) \
+                    .execute()
                 
                 if ubic_resp.data and len(ubic_resp.data) > 0:
-                    lat = ubic_resp.data[0]['lat']
-                    lng = ubic_resp.data[0]['lng']
+                    recolector_lat = ubic_resp.data[0]['lat']
+                    recolector_lng = ubic_resp.data[0]['lng']
+                    
+                    # Calcular distancia real usando Haversine
+                    from math import radians, sin, cos, sqrt, atan2
+                    R = 6371  # Radio de la Tierra en km
+                    
+                    lat1, lon1 = radians(usuario_lat), radians(usuario_lng)
+                    lat2, lon2 = radians(recolector_lat), radians(recolector_lng)
+                    
+                    dlat = lat2 - lat1
+                    dlon = lon2 - lon1
+                    
+                    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                    c = 2 * atan2(sqrt(a), sqrt(1-a))
+                    distancia = R * c
+                    
+                    tiempo_estimado = int((distancia / 30) * 60)  # Asumiendo 30 km/h
+                    
         except Exception as e:
-            print(f'Error obteniendo seguimiento: {e}')
+            print(f'⚠️ Error obteniendo seguimiento: {e}')
     
-    # Fallback a SQLite si Supabase falla
-    if lat == 19.4326 and lng == -99.1332:
-        try:
-            conn = get_db_connection()
-            ubicacion = conn.execute('''
-                SELECT lat, lng FROM ubicaciones_recolectores 
-                WHERE id_recolector = 2 
-                ORDER BY timestamp DESC LIMIT 1
-            ''').fetchone()
-            
-            if ubicacion:
-                lat, lng = ubicacion['lat'], ubicacion['lng']
-            
-            conn.close()
-        except:
-            pass
+    # Si no hay ubicación del recolector, usar la del usuario
+    if recolector_lat is None:
+        recolector_lat, recolector_lng = usuario_lat, usuario_lng
     
     return jsonify({
-        'recolector': {
-            'nombre': 'Carlos Martínez',
-            'telefono': '+52 55 9876 5432',
-            'vehiculo': 'Unidad 42',
-            'placas': 'ABC-123-D'
-        },
+        'recolector': recolector_info,
         'ubicacion': {
-            'lat': lat,
-            'lng': lng
+            'lat': recolector_lat,
+            'lng': recolector_lng
         },
-        'distancia': 2.5,
-        'tiempo_estimado': 12,
+        'ubicacion_usuario': {
+            'lat': usuario_lat,
+            'lng': usuario_lng
+        },
+        'distancia': round(distancia, 2),
+        'tiempo_estimado': tiempo_estimado,
         'estado': 'en-camino'
     })
 

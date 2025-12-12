@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel del Recolector - EcoRecolección</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        #mapaSolicitud, #mapaSeguimiento, #mapaRutas, #mapaSugerir {
+        #mapaSolicitud, #mapaSeguimiento, #mapaRutas, #mapaSugerir, #mapaDetallesSolicitud {
             width: 100%;
             height: 400px;
             border-radius: 8px;
@@ -84,10 +84,6 @@
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2h10a1 1 0 000-2 2 2 0 00-2 2v10a2 2 0 002 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h6a1 1 0 000-2H7z"></path></svg>
                     <span>Mis Recolecciones</span>
                 </button>
-                <button onclick="changeView('seguimiento')" data-view="seguimiento" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-white hover:bg-green-500/30">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L9.9 4.05a7 7 0 00-9.9 0zM9 11a2 2 0 100-4 2 2 0 000 4z"></path></svg>
-                    <span>Seguimiento</span>
-                </button>
                 <button onclick="changeView('rutas')" data-view="rutas" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg text-white hover:bg-green-500/30">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 3a1 1 0 000 2h2a1 1 0 100-2H9z"></path><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm7 4a1 1 0 11-2 0 1 1 0 012 0z"></path></svg>
                     <span>Rutas</span>
@@ -133,6 +129,117 @@
         </div>
     </div>
 
+    <!-- Modal de Detalles de Solicitud -->
+    <div id="modalDetalles" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="bg-gradient-to-r from-green-600 to-blue-600 p-6 text-white">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-bold">Detalles de la Solicitud</h2>
+                    <button onclick="cerrarModalDetalles()" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-full transition">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div id="modalContenido" class="p-6">
+                <div class="text-center py-8">
+                    <p class="text-gray-500">Cargando detalles...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Finalizar Recolección -->
+    <div id="modalFinalizarRecoleccion" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="bg-gradient-to-r from-green-600 to-blue-600 p-6 text-white">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-bold">Finalizar Recolección</h2>
+                    <button onclick="cerrarModalFinalizarRecoleccion()" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-full transition">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="p-6">
+                <form id="formFinalizarRecoleccion" class="space-y-6">
+                    <input type="hidden" id="idSolicitudFinalizar" value="">
+                    
+                    <!-- Fecha de Finalización -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Fecha de Finalización</label>
+                        <input type="datetime-local" id="fechaFinalizacion" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none" required>
+                    </div>
+                    
+                    <!-- Tipo de Evidencia -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Tipo de Finalización</label>
+                        <select id="tipoEvidencia" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none" required>
+                            <option value="">-- Selecciona el tipo --</option>
+                            <option value="completada">✅ Completada (Física)</option>
+                            <option value="completada-usuario">✅ Completada (Con Usuario)</option>
+                            <option value="no-completada">❌ No Completada</option>
+                            <option value="no-encontrada">🔍 Dirección No Encontrada</option>
+                            <option value="usuario-ausente">👤 Usuario Ausente</option>
+                            <option value="fallo-vehiculo">🚗 Fallo en Vehículo</option>
+                            <option value="acceso-denegado">🚫 Acceso Denegado</option>
+                            <option value="otro">❓ Otro</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Notas -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Notas (Opcional)</label>
+                        <textarea id="notasFinalizacion" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="Detalles adicionales de la recolección..."></textarea>
+                    </div>
+                    
+                    <!-- Ubicación Actual -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="block text-sm font-semibold text-gray-700">Ubicación Actual</label>
+                            <button type="button" onclick="obtenerUbicacionActual()" class="px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                                📍 Obtener GPS
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs text-gray-600">Latitud</label>
+                                <input type="number" id="latFinalizacion" step="0.000001" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" readonly>
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-600">Longitud</label>
+                                <input type="number" id="lngFinalizacion" step="0.000001" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Foto de Evidencia -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Foto de Evidencia (Opcional)</label>
+                        <input type="file" id="fotoEvidencia" accept="image/*" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    
+                    <!-- Botones -->
+                    <div class="flex gap-3 pt-4 border-t border-gray-200">
+                        <button type="button" onclick="cerrarModalFinalizarRecoleccion()" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+                            <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            Finalizar Recolección
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="/assets/js/mapas.js"></script>
     <script>
         const API_BASE = '/api';
@@ -172,8 +279,7 @@
                 'inicio': { title: 'Panel de Inicio', subtitle: 'Resumen de tu actividad' },
                 'solicitudes': { title: 'Solicitudes Disponibles', subtitle: 'Nuevas recolecciones para ti' },
                 'mis-recolecciones': { title: 'Mis Recolecciones', subtitle: 'Historial de tus recolecciones' },
-                'seguimiento': { title: 'Seguimiento en Tiempo Real', subtitle: 'Ubicación de solicitudes' },
-                'rutas': { title: 'Rutas', subtitle: 'Rutas sugeridas' },
+                'rutas': { title: 'Mapa de Recolectores', subtitle: 'Ubicación de todos los recolectores' },
                 'perfil': { title: 'Mi Perfil', subtitle: 'Información personal' }
             };
             
@@ -192,9 +298,6 @@
                 case 'mis-recolecciones':
                     loadMisRecolecciones();
                     break;
-                case 'seguimiento':
-                    loadSeguimiento();
-                    break;
                 case 'rutas':
                     loadRutas();
                     break;
@@ -209,7 +312,7 @@
         // Vista Inicio
         async function loadInicio() {
             try {
-                const response = await fetch(`${API_BASE}/usuario/estadisticas`);
+                const response = await fetch(`${API_BASE}/recolector/estadisticas`);
                 const stats = await response.json();
                 
                 const html = `
@@ -224,24 +327,29 @@
                                 <div id="ubicacionBadge" class="text-sm font-medium px-3 py-1 bg-green-500 rounded-full">Esperando ubicación...</div>
                             </div>
                             
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <p class="text-green-100 text-sm mb-1">Latitud</p>
-                                    <p id="ubicacionLat" class="text-xl font-bold">--</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                                    <p class="text-green-100 text-sm mb-1">📍 Latitud</p>
+                                    <p id="ubicacionLat" class="text-3xl font-bold">--</p>
                                 </div>
-                                <div>
-                                    <p class="text-green-100 text-sm mb-1">Longitud</p>
-                                    <p id="ubicacionLng" class="text-xl font-bold">--</p>
+                                <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                                    <p class="text-green-100 text-sm mb-1">📍 Longitud</p>
+                                    <p id="ubicacionLng" class="text-3xl font-bold">--</p>
                                 </div>
                             </div>
                             
+                            <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4">
+                                <p class="text-green-100 text-sm mb-2">⏰ Última actualización</p>
+                                <p id="ubicacionTime" class="text-lg font-medium">No enviada aún</p>
+                            </div>
+                            
                             <div class="flex gap-3">
-                                <button onclick="enviarUbicacion()" class="flex-1 bg-white hover:bg-gray-100 text-green-700 font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2">
-                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.172 4.172a4 4 0 015.656 0L10 6.343l.172-.171a4 4 0 115.656 5.656L10 17.657l-5.828-5.829a4 4 0 010-5.656z" clip-rule="evenodd"></path></svg>
+                                <button onclick="enviarUbicacion()" class="flex-1 bg-white hover:bg-gray-100 text-green-700 font-bold py-3 px-6 rounded-lg transition flex items-center justify-center gap-2 shadow-lg">
+                                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
                                     Enviar Mi Ubicación Ahora
                                 </button>
                             </div>
-                            <p id="ubicacionMsg" class="text-green-100 text-xs mt-3"></p>
+                            <p id="ubicacionMsg" class="text-green-100 text-sm mt-3 text-center"></p>
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -281,20 +389,16 @@
                         <div class="bg-white rounded-xl p-6 border border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-800 mb-4">Actividad Reciente</h3>
                             <div class="space-y-3">
-                                ${stats.actividad.map(a => `
+                                ${stats.actividad && stats.actividad.length > 0 ? stats.actividad.map(a => `
                                     <div class="flex items-start gap-4 pb-3 border-b border-gray-100 last:border-0">
-                                        <div class="text-xs text-gray-500 min-w-max">${new Date(a.fecha_solicitud).toLocaleDateString()}</div>
+                                        <div class="text-xs text-gray-500 min-w-max">${new Date(a.fecha_finalizacion).toLocaleDateString()}</div>
                                         <div class="flex-1">
-                                            <p class="text-sm font-medium text-gray-800">${a.tipo_residuo}</p>
+                                            <p class="text-sm font-medium text-gray-800">${a.tipo_residuo} • ${a.kilos_recolectados} kg</p>
                                             <p class="text-xs text-gray-500">Solicitud #${a.id_solicitud}</p>
                                         </div>
-                                        <span class="px-2 py-1 rounded text-xs font-medium ${
-                                            a.estado === 'completada' ? 'bg-green-100 text-green-800' :
-                                            a.estado === 'en-proceso' ? 'bg-blue-100 text-blue-800' :
-                                            'bg-orange-100 text-orange-800'
-                                        }">${a.estado}</span>
+                                        <span class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">Completada</span>
                                     </div>
-                                `).join('')}
+                                `).join('') : '<p class="text-sm text-gray-500">No hay recolecciones completadas</p>'}
                             </div>
                         </div>
                     </div>
@@ -333,17 +437,31 @@
                                             <h3 class="font-semibold text-gray-800 text-lg">${s.tipo_residuo}</h3>
                                             <span class="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">${s.kilos} kg</span>
                                         </div>
-                                        <p class="text-sm text-gray-600">${s.direccion}</p>
-                                        <p class="text-xs text-gray-500 mt-1">ID: #${s.id_solicitud} | Solicitante: ${s.nombre} ${s.apellidos}</p>
+                                        <p class="text-sm text-gray-600 mb-1">
+                                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            </svg>
+                                            ${s.calle || ''} ${s['numero exterior'] || ''}, ${s.colonia || ''}, ${s['codigo postal'] || ''}
+                                        </p>
+                                        <p class="text-xs text-gray-500">ID: #${s.id_solicitud}</p>
                                     </div>
                                 </div>
                                 
-                                ${s.info_extra ? `<p class="text-sm text-gray-600 mb-3">${s.info_extra}</p>` : ''}
-                                ${s.usuario_telefono ? `<p class="text-sm text-gray-600 mb-3">${s.usuario_telefono}</p>` : ''}
+                                ${s.info_extra ? `<p class="text-sm text-gray-600 mb-3 italic">"${s.info_extra}"</p>` : ''}
                                 
                                 <div class="flex gap-2">
+                                    <button onclick="verDetallesSolicitud(${s.id_solicitud})" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                                        </svg>
+                                        Ver Ubicación
+                                    </button>
                                     <button onclick="aceptarSolicitud(${s.id_solicitud})" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
-                                        Aceptar Solicitud
+                                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                        Aceptar
                                     </button>
                                 </div>
                             </div>
@@ -361,36 +479,63 @@
         // Vista Mis Recolecciones
         async function loadMisRecolecciones() {
             try {
-                const response = await fetch(`${API_BASE}/usuario/solicitudes?estado=todas`);
-                const solicitudes = await response.json();
+                const response = await fetch(`${API_BASE}/recolector/mis-recolecciones`);
+                const recolecciones = await response.json();
                 
                 const html = `
                     <div class="space-y-4">
-                        ${solicitudes.length > 0 ? solicitudes.map(s => `
-                            <div class="bg-white rounded-xl p-6 border border-gray-200">
-                                <div class="flex items-start justify-between">
+                        <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200 mb-6">
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">Mis Recolecciones en Proceso</h3>
+                            <p class="text-sm text-gray-600">Total: ${recolecciones.length} recolecciones asignadas</p>
+                        </div>
+                        
+                        ${recolecciones.length > 0 ? recolecciones.map(r => `
+                            <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg hover:border-green-300 transition">
+                                <div class="flex items-start justify-between mb-4">
                                     <div class="flex-1">
-                                        <h3 class="font-semibold text-gray-800">#${s.id_solicitud} - ${s.tipo_residuo}</h3>
-                                        <p class="text-sm text-gray-600">${s.direccion}</p>
-                                        <p class="text-sm text-gray-500 mt-2">${new Date(s.fecha_solicitud).toLocaleDateString()}</p>
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <h3 class="font-semibold text-gray-800 text-lg">#${r.id_solicitud} - ${r.tipo_residuo}</h3>
+                                            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">${r.kilos} kg</span>
+                                        </div>
+                                        <p class="text-sm text-gray-600 mb-1">
+                                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                            </svg>
+                                            ${r.calle || ''} ${r.numero_exterior || ''}, ${r.colonia || ''}
+                                        </p>
+                                        <p class="text-xs text-gray-500">
+                                            📅 ${new Date(r.fecha_solicitud).toLocaleDateString()}
+                                        </p>
                                     </div>
                                     <div class="text-right">
-                                        <p class="font-bold text-gray-800">${s.kilos} kg</p>
-                                        <span class="inline-block px-3 py-1 rounded-full text-xs font-medium mt-2 ${
-                                            s.estado === 'completada' ? 'bg-green-100 text-green-800' :
-                                            s.estado === 'en-proceso' ? 'bg-blue-100 text-blue-800' :
+                                        <span class="inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                                            r.estado === 'completada' ? 'bg-green-100 text-green-800' :
+                                            r.estado === 'en-proceso' ? 'bg-blue-100 text-blue-800' :
                                             'bg-orange-100 text-orange-800'
-                                        }">${s.estado}</span>
+                                        }">${r.estado}</span>
                                     </div>
                                 </div>
+                                
+                                ${r.referencias ? `<p class="text-sm text-gray-600 mb-3"><strong>Referencias:</strong> ${r.referencias}</p>` : ''}
+                                ${r.info_extra ? `<p class="text-sm text-gray-600 mb-3 italic text-blue-600">${r.info_extra}</p>` : ''}
+                                
+                                <div class="flex gap-2 pt-3 border-t border-gray-100">
+                                    <button onclick="completarRecoleccion(${r.id_solicitud})" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
+                                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                        Marcar como Completada
+                                    </button>
+                                </div>
                             </div>
-                        `).join('') : '<p class="text-gray-500 text-center py-8">No hay recolecciones registradas</p>'}
+                        `).join('') : '<div class="text-center py-12"><p class="text-gray-500 text-lg">No tienes recolecciones asignadas</p></div>'}
                     </div>
                 `;
                 
                 document.getElementById('mainContent').innerHTML = html;
             } catch (error) {
                 console.error('Error:', error);
+                document.getElementById('mainContent').innerHTML = '<p class="text-red-500">Error cargando recolecciones</p>';
             }
         }
 
@@ -410,18 +555,66 @@
         }
 
         // Vista Rutas con Mapa
-        function loadRutas() {
+        async function loadRutas() {
             const html = `
                 <div class="map-container">
                     <div class="map-header bg-gradient-to-r from-purple-50 to-blue-50">
-                        <h3>Rutas de Tulancingo de Bravo</h3>
-                        <p>7 rutas con camiones asignados y puntos de parada</p>
+                        <h3>🗺️ Ubicación de Recolectores en Tiempo Real</h3>
+                        <p id="recolectoresCount">Cargando recolectores activos...</p>
                     </div>
-                    <div id="mapaRutas" class="rounded-lg overflow-hidden"></div>
+                    <div id="mapaRutas" style="height: 600px;" class="rounded-lg overflow-hidden"></div>
+                </div>
+                
+                <div class="mt-6 bg-white rounded-xl p-6 border border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">📍 Lista de Recolectores</h3>
+                    <div id="listaRecolectores" class="space-y-3">
+                        <p class="text-sm text-gray-500">Cargando...</p>
+                    </div>
                 </div>
             `;
             document.getElementById('mainContent').innerHTML = html;
-            setTimeout(async () => await initRutasMap('mapaRutas'), 100);
+            
+            // Cargar ubicaciones y renderizar mapa
+            setTimeout(async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/recolectores/ubicaciones`);
+                    const recolectores = await response.json();
+                    
+                    console.log('Recolectores cargados:', recolectores);
+                    
+                    document.getElementById('recolectoresCount').textContent = 
+                        `${recolectores.length} recolectores activos en el mapa`;
+                    
+                    // Renderizar lista de recolectores
+                    const listaDiv = document.getElementById('listaRecolectores');
+                    if (recolectores.length > 0) {
+                        listaDiv.innerHTML = recolectores.map((r, idx) => `
+                            <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                                <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                                    ${idx + 1}
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium text-gray-800">${r.nombre}</p>
+                                    <p class="text-xs text-gray-500">${r.vehiculo || 'Vehículo'} - ${r.placa || 'S/P'}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs text-gray-500">📍 ${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</p>
+                                    <p class="text-xs text-green-600">🟢 Activo</p>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        listaDiv.innerHTML = '<p class="text-sm text-gray-500">No hay recolectores con ubicación disponible</p>';
+                    }
+                    
+                    // Inicializar mapa con Mapbox
+                    await initRutasMapConRecolectores('mapaRutas', recolectores);
+                } catch (error) {
+                    console.error('Error cargando recolectores:', error);
+                    document.getElementById('listaRecolectores').innerHTML = 
+                        '<p class="text-sm text-red-500">Error al cargar recolectores</p>';
+                }
+            }, 100);
         }
 
         // Vista Perfil
@@ -482,6 +675,466 @@
 
         function logout() {
             window.location.href = '/logout';
+        }
+
+        // Aceptar solicitud
+        async function aceptarSolicitud(idSolicitud) {
+            if (!confirm('¿Deseas aceptar esta solicitud de recolección?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/recolector/aceptar-solicitud/${idSolicitud}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Solicitud aceptada correctamente');
+                    // Recargar la lista de solicitudes
+                    loadSolicitudesDisponibles();
+                } else {
+                    alert('❌ Error: ' + (result.error || 'No se pudo aceptar la solicitud'));
+                }
+            } catch (error) {
+                console.error('Error al aceptar solicitud:', error);
+                alert('❌ Error de conexión. Intenta de nuevo.');
+            }
+        }
+        
+        // Completar recolección
+        async function completarRecoleccion(idSolicitud) {
+            document.getElementById('idSolicitudFinalizar').value = idSolicitud;
+            document.getElementById('fechaFinalizacion').value = new Date().toISOString().slice(0, 16);
+            document.getElementById('tipoEvidencia').value = '';
+            document.getElementById('notasFinalizacion').value = '';
+            document.getElementById('latFinalizacion').value = '';
+            document.getElementById('lngFinalizacion').value = '';
+            
+            document.getElementById('modalFinalizarRecoleccion').classList.remove('hidden');
+        }
+        
+        function cerrarModalFinalizarRecoleccion() {
+            document.getElementById('modalFinalizarRecoleccion').classList.add('hidden');
+        }
+        
+        // Obtener ubicación actual
+        function obtenerUbicacionActual() {
+            if (!navigator.geolocation) {
+                alert('Tu navegador no soporta GPS');
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    document.getElementById('latFinalizacion').value = position.coords.latitude.toFixed(6);
+                    document.getElementById('lngFinalizacion').value = position.coords.longitude.toFixed(6);
+                    alert('✅ Ubicación obtenida correctamente');
+                },
+                function(error) {
+                    alert('❌ Error al obtener GPS: ' + error.message);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+        
+        // Enviar formulario de finalización
+        document.getElementById('formFinalizarRecoleccion').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const idSolicitud = document.getElementById('idSolicitudFinalizar').value;
+            const tipo = document.getElementById('tipoEvidencia').value;
+            
+            if (!tipo) {
+                alert('Selecciona el tipo de finalización');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('id_solicitud', idSolicitud);
+                formData.append('fecha_finalizacion', document.getElementById('fechaFinalizacion').value);
+                formData.append('tipo_evidencia', tipo);
+                formData.append('notas', document.getElementById('notasFinalizacion').value);
+                formData.append('lat_final', document.getElementById('latFinalizacion').value);
+                formData.append('lng_final', document.getElementById('lngFinalizacion').value);
+                
+                const fotoInput = document.getElementById('fotoEvidencia');
+                if (fotoInput.files.length > 0) {
+                    formData.append('foto_evidencia', fotoInput.files[0]);
+                }
+                
+                const response = await fetch(`${API_BASE}/recolector/finalizar-recoleccion`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Recolección finalizada correctamente');
+                    cerrarModalFinalizarRecoleccion();
+                    loadMisRecolecciones();
+                } else {
+                    alert('❌ Error: ' + (result.error || 'No se pudo finalizar'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Error de conexión.');
+            }
+        })
+
+        // Ver detalles de solicitud con mapa
+        let mapaDetalles = null;
+        async function verDetallesSolicitud(idSolicitud) {
+            try {
+                const response = await fetch(`${API_BASE}/recolector/solicitudes-disponibles`);
+                const solicitudes = await response.json();
+                const solicitud = solicitudes.find(s => s.id_solicitud === idSolicitud);
+                
+                if (!solicitud) {
+                    console.error('Solicitud no encontrada. ID buscado:', idSolicitud);
+                    console.error('Solicitudes disponibles:', solicitudes);
+                    alert('Solicitud no encontrada');
+                    return;
+                }
+                
+                const modal = document.getElementById('modalDetalles');
+                const contenido = document.getElementById('modalContenido');
+                
+                contenido.innerHTML = `
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Información -->
+                        <div class="space-y-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-800 mb-3">Información de la Recolección</h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                        <svg class="w-5 h-5 text-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                                        </svg>
+                                        <div>
+                                            <p class="text-xs text-gray-500">Tipo de Residuo</p>
+                                            <p class="text-sm font-medium text-gray-800">${solicitud.tipo_residuo}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                        <svg class="w-5 h-5 text-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
+                                        </svg>
+                                        <div>
+                                            <p class="text-xs text-gray-500">Cantidad</p>
+                                            <p class="text-sm font-medium text-gray-800">${solicitud.kilos} kilogramos</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                        <svg class="w-5 h-5 text-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        </svg>
+                                        <div>
+                                            <p class="text-xs text-gray-500">Dirección</p>
+                                            <p class="text-sm font-medium text-gray-800">
+                                                ${solicitud.calle || ''} ${solicitud['numero exterior'] || ''}<br>
+                                                ${solicitud.colonia || ''}, CP ${solicitud['codigo postal'] || ''}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    ${solicitud.referencias ? `
+                                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                        <svg class="w-5 h-5 text-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <div>
+                                            <p class="text-xs text-gray-500">Referencias</p>
+                                            <p class="text-sm font-medium text-gray-800">${solicitud.referencias}</p>
+                                        </div>
+                                    </div>
+                                    ` : ''}
+                                    
+                                    ${solicitud.info_extra ? `
+                                    <div class="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                        <svg class="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+                                        </svg>
+                                        <div>
+                                            <p class="text-xs text-blue-600 font-medium">Información adicional</p>
+                                            <p class="text-sm text-gray-700 italic">"${solicitud.info_extra}"</p>
+                                        </div>
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            
+                            <div class="pt-4">
+                                <button onclick="aceptarSolicitud(${solicitud.id_solicitud}); cerrarModalDetalles();" class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-base font-semibold">
+                                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    Aceptar esta Solicitud
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Mapa -->
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3">Ubicación en el Mapa</h3>
+                            <div id="mapaDetallesSolicitud" class="w-full h-96 rounded-lg border border-gray-200"></div>
+                            <p class="text-xs text-gray-500 mt-2 text-center">
+                                📍 Coordenadas: ${solicitud.lat?.toFixed(6) || 'N/A'}, ${solicitud.lng?.toFixed(6) || 'N/A'}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                
+                modal.classList.remove('hidden');
+                
+                // Inicializar mapa después de que el modal sea visible
+                setTimeout(() => {
+                    if (solicitud.lat && solicitud.lng) {
+                        if (mapaDetalles) {
+                            mapaDetalles.remove();
+                        }
+                        
+                        mapaDetalles = L.map('mapaDetallesSolicitud').setView([solicitud.lat, solicitud.lng], 15);
+                        
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '© OpenStreetMap contributors'
+                        }).addTo(mapaDetalles);
+                        
+                        // Marcador personalizado
+                        const icon = L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style="background-color: #DC2626; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 3px solid white;">
+                                    <svg style="width: 20px; height: 20px; color: white;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+                                    </svg>
+                                  </div>`,
+                            iconSize: [40, 40],
+                            iconAnchor: [20, 40]
+                        });
+                        
+                        L.marker([solicitud.lat, solicitud.lng], {icon: icon})
+                            .addTo(mapaDetalles)
+                            .bindPopup(`<b>${solicitud.tipo_residuo}</b><br>${solicitud.kilos} kg`)
+                            .openPopup();
+                    }
+                }, 300);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar detalles de la solicitud');
+            }
+        }
+        
+        function cerrarModalDetalles() {
+            document.getElementById('modalDetalles').classList.add('hidden');
+            if (mapaDetalles) {
+                mapaDetalles.remove();
+                mapaDetalles = null;
+            }
+        }
+
+        // Inicializar mapa de rutas con Mapbox mostrando todos los recolectores
+        let mapaRutas = null;
+        let markersRecolectores = [];
+        
+        async function initRutasMapConRecolectores(containerId, recolectores) {
+            // Limpiar mapa anterior si existe
+            if (mapaRutas) {
+                mapaRutas.remove();
+                mapaRutas = null;
+            }
+            
+            markersRecolectores = [];
+            
+            if (!recolectores || recolectores.length === 0) {
+                document.getElementById(containerId).innerHTML = 
+                    '<div class="flex items-center justify-center h-full bg-gray-100"><p class="text-gray-500">No hay recolectores con ubicación disponible</p></div>';
+                return;
+            }
+            
+            // Centro inicial: promedio de todas las ubicaciones
+            const centerLat = recolectores.reduce((sum, r) => sum + r.lat, 0) / recolectores.length;
+            const centerLng = recolectores.reduce((sum, r) => sum + r.lng, 0) / recolectores.length;
+            
+            // Obtener token de Mapbox
+            let mapboxToken = null;
+            try {
+                const tokenRes = await fetch('/api/config/mapbox-token');
+                if (tokenRes.ok) {
+                    const data = await tokenRes.json();
+                    mapboxToken = data.token;
+                }
+            } catch (e) {
+                console.warn('No se pudo obtener token de Mapbox, usando OpenStreetMap');
+            }
+            
+            // Inicializar mapa
+            mapaRutas = L.map(containerId).setView([centerLat, centerLng], 13);
+            
+            // Agregar capa de mapa (Mapbox o fallback a OSM)
+            if (mapboxToken) {
+                L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`, {
+                    tileSize: 512,
+                    zoomOffset: -1,
+                    attribution: '© Mapbox © OpenStreetMap',
+                    maxZoom: 18
+                }).addTo(mapaRutas);
+            } else {
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 18
+                }).addTo(mapaRutas);
+            }
+            
+            // Crear icono personalizado para recolectores
+            const truckIcon = L.divIcon({
+                html: `
+                    <div style="position: relative;">
+                        <div style="background: #22c55e; border: 3px solid white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                            <svg width="24" height="24" fill="white" viewBox="0 0 20 20">
+                                <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+                                <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"/>
+                            </svg>
+                        </div>
+                        <div style="position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); background: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                            🚛
+                        </div>
+                    </div>
+                `,
+                className: 'custom-truck-marker',
+                iconSize: [40, 50],
+                iconAnchor: [20, 45]
+            });
+            
+            // Agregar marcador para cada recolector
+            recolectores.forEach((recolector, index) => {
+                const marker = L.marker([recolector.lat, recolector.lng], { icon: truckIcon })
+                    .addTo(mapaRutas)
+                    .bindPopup(`
+                        <div style="padding: 8px; min-width: 200px;">
+                            <h3 style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: #1f2937;">
+                                🚛 ${recolector.nombre}
+                            </h3>
+                            <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+                                <p><strong>Vehículo:</strong> ${recolector.vehiculo || 'No especificado'}</p>
+                                <p><strong>Placa:</strong> ${recolector.placa || 'Sin placa'}</p>
+                                <p><strong>Teléfono:</strong> ${recolector.telefono || 'N/A'}</p>
+                                <p style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+                                    <strong>Ubicación:</strong><br>
+                                    📍 ${recolector.lat.toFixed(5)}, ${recolector.lng.toFixed(5)}
+                                </p>
+                            </div>
+                        </div>
+                    `);
+                
+                markersRecolectores.push(marker);
+            });
+            
+            // Ajustar vista para mostrar todos los marcadores
+            if (markersRecolectores.length > 0) {
+                const group = L.featureGroup(markersRecolectores);
+                mapaRutas.fitBounds(group.getBounds().pad(0.1));
+            }
+            
+            console.log(`✅ Mapa de rutas inicializado con ${recolectores.length} recolectores`);
+        }
+
+        // Enviar ubicación del recolector
+        function enviarUbicacion() {
+            if (!navigator.geolocation) {
+                alert('❌ Tu navegador no soporta geolocalización');
+                document.getElementById('ubicacionMsg').textContent = '❌ Navegador no compatible';
+                return;
+            }
+            
+            document.getElementById('ubicacionBadge').textContent = '🔄 Obteniendo GPS...';
+            document.getElementById('ubicacionBadge').className = 'text-sm font-medium px-3 py-1 bg-yellow-500 rounded-full';
+            document.getElementById('ubicacionMsg').textContent = '📡 Solicitando ubicación GPS...';
+            
+            navigator.geolocation.getCurrentPosition(
+                async function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    // Actualizar interfaz
+                    document.getElementById('ubicacionLat').textContent = lat.toFixed(6);
+                    document.getElementById('ubicacionLng').textContent = lng.toFixed(6);
+                    
+                    const ahora = new Date();
+                    const horaFormateada = ahora.toLocaleTimeString('es-MX', { 
+                        hour: '2-digit', 
+                        minute: '2-digit', 
+                        second: '2-digit' 
+                    });
+                    document.getElementById('ubicacionTime').textContent = `${horaFormateada} - ${ahora.toLocaleDateString('es-MX')}`;
+                    
+                    document.getElementById('ubicacionMsg').textContent = '📤 Enviando al servidor...';
+                    
+                    try {
+                        // Enviar al servidor
+                        const response = await fetch(`${API_BASE}/recolector/enviar-ubicacion`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ lat, lng })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            document.getElementById('ubicacionBadge').textContent = '✅ Ubicación Enviada';
+                            document.getElementById('ubicacionBadge').className = 'text-sm font-medium px-3 py-1 bg-green-500 rounded-full animate-pulse';
+                            document.getElementById('ubicacionMsg').textContent = `✅ Ubicación enviada correctamente a las ${horaFormateada}`;
+                            
+                            // Quitar animación después de 2 segundos
+                            setTimeout(() => {
+                                document.getElementById('ubicacionBadge').className = 'text-sm font-medium px-3 py-1 bg-green-500 rounded-full';
+                            }, 2000);
+                        } else {
+                            throw new Error(result.error || 'Error desconocido');
+                        }
+                    } catch (error) {
+                        console.error('Error enviando ubicación:', error);
+                        document.getElementById('ubicacionBadge').textContent = '❌ Error al enviar';
+                        document.getElementById('ubicacionBadge').className = 'text-sm font-medium px-3 py-1 bg-red-500 rounded-full';
+                        document.getElementById('ubicacionMsg').textContent = '❌ Error al enviar al servidor';
+                    }
+                },
+                function(error) {
+                    console.error('Error GPS:', error);
+                    document.getElementById('ubicacionBadge').textContent = '❌ Error GPS';
+                    document.getElementById('ubicacionBadge').className = 'text-sm font-medium px-3 py-1 bg-red-500 rounded-full';
+                    
+                    let mensaje = '';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            mensaje = '❌ Permiso denegado. Activa la ubicación en tu navegador.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            mensaje = '❌ Ubicación no disponible.';
+                            break;
+                        case error.TIMEOUT:
+                            mensaje = '❌ Tiempo de espera agotado.';
+                            break;
+                        default:
+                            mensaje = '❌ Error desconocido al obtener GPS.';
+                    }
+                    document.getElementById('ubicacionMsg').textContent = mensaje;
+                },
+                { 
+                    enableHighAccuracy: true, 
+                    timeout: 15000, 
+                    maximumAge: 0 
+                }
+            );
         }
 
         // Cargar datos iniciales
