@@ -11,63 +11,96 @@ let rutasData = [];
 let recolectores = [];
 let quejas = [];
 
-// Cargar datos desde el backend
+// Cargar datos desde el backend con reintentos
 async function cargarDatos() {
+    const maxReintentos = 3;
+    
     try {
         console.log('📥 Iniciando carga de datos...');
         
-        // Cargar solo lo esencial primero
-        const recolectoresUbicRes = await fetch('/api/admin/recolectores-ubicacion');
-        const recolectoresUbic = await recolectoresUbicRes.json();
-        
-        console.log('✅ Recolectores recibidos:', recolectoresUbic);
-        
-        // Transformar directamente a vehiculos para el mapa
-        vehiculos = recolectoresUbic.map(r => ({
-            id: r.id,
-            matricula: r.nombre,  // Nombre del recolector
-            conductor: r.correo || r.telefono || 'N/A',
-            estado: r.estado || 'operativo',
-            x: 50 + (Math.random() - 0.5) * 50,
-            y: 50 + (Math.random() - 0.5) * 50,
-            ruta: r.vehiculo || 'Recolector',
-            solicitud: null,
-            lat: r.lat,
-            lng: r.lng,
-            id_recolector: r.id,
-            telefono: r.telefono,
-            correo: r.correo,
-            placa: r.placa
-        }));
-        
-        console.log('🚗 Vehículos transformados:', vehiculos);
-        
-        // Cargar resto de datos en background
+        // Cargar recolectores y sus ubicaciones
         try {
-            const [solicitudesRes, recolectoresRes, quejasRes] = await Promise.all([
-                fetch('/api/usuario/solicitudes'),
-                fetch('/api/admin/recolectores'),
-                fetch('/api/admin/quejas')
-            ]);
+            const recolectoresUbicRes = await fetch('/api/admin/recolectores-ubicacion');
+            const recolectoresUbic = await recolectoresUbicRes.json() || [];
             
-            solicitudes = await solicitudesRes.json();
-            recolectores = await recolectoresRes.json();
-            quejas = await quejasRes.json();
+            console.log('✅ Recolectores recibidos:', recolectoresUbic.length);
             
-            console.log('📊 Datos secundarios cargados');
+            vehiculos = recolectoresUbic.map(r => ({
+                id: r.id,
+                matricula: r.nombre,
+                conductor: r.correo || r.telefono || 'N/A',
+                estado: r.estado || 'operativo',
+                x: 50 + (Math.random() - 0.5) * 50,
+                y: 50 + (Math.random() - 0.5) * 50,
+                ruta: r.vehiculo || 'Recolector',
+                solicitud: null,
+                lat: r.lat,
+                lng: r.lng,
+                id_recolector: r.id,
+                telefono: r.telefono,
+                correo: r.correo,
+                placa: r.placa
+            }));
+            
+            console.log('🚗 Vehículos transformados:', vehiculos.length);
         } catch (e) {
-            console.warn('⚠️ No se pudieron cargar datos secundarios:', e);
+            console.warn('⚠️ Error cargando recolectores:', e);
+            vehiculos = [];
         }
         
+        // Cargar datos secundarios en paralelo con reintentos
+        const loadWithRetry = async (url, maxRetries = maxReintentos) => {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
+                    console.log(`✅ Datos cargados de ${url}:`, data.length || Object.keys(data).length);
+                    return data;
+                } catch (e) {
+                    if (i === maxRetries - 1) {
+                        console.error(`❌ Falló ${url} después de ${maxRetries} intentos:`, e);
+                        return [];
+                    }
+                    await new Promise(r => setTimeout(r, 500));
+                }
+            }
+        };
+        
+        const [solicitudesData, recolectoresData, quejasData] = await Promise.all([
+            loadWithRetry('/api/usuario/solicitudes'),
+            loadWithRetry('/api/admin/recolectores'),
+            loadWithRetry('/api/admin/quejas')
+        ]);
+        
+        solicitudes = solicitudesData || [];
+        recolectores = recolectoresData || [];
+        quejas = quejasData || [];
+        
+        console.log('📊 Datos cargados | Solicitudes:', solicitudes.length, '| Recolectores:', recolectores.length, '| Quejas:', quejas.length);
         console.log('✅ Carga de datos completada');
         return true;
     } catch (error) {
-        console.error('❌ Error cargando datos:', error);
+        console.error('❌ Error fatal en cargarDatos:', error);
         vehiculos = [];
         solicitudes = [];
         recolectores = [];
         quejas = [];
         return false;
+    }
+}
+
+// Refrescar quejas desde BD
+async function refrescarQuejas() {
+    try {
+        console.log('🔄 Refrescando quejas...');
+        const res = await fetch('/api/admin/quejas');
+        if (res.ok) {
+            quejas = await res.json() || [];
+            console.log('✅ Quejas refrescadas:', quejas.length);
+        }
+    } catch (e) {
+        console.error('❌ Error refrescando quejas:', e);
     }
 }
 
@@ -204,29 +237,99 @@ function changeView(view) {
     } else if (view === 'recolectores') {
         renderRecolectores();
     } else if (view === 'reportes') {
-        renderReportes();
+        // Refrescar quejas de la BD antes de renderizar
+        refrescarQuejas().then(() => renderReportes());
     }
 }
 
 // ========== SEGUIMIENTO DE VEHÍCULOS ==========
 
 function initSeguimiento() {
-    console.log('🗺️ Inicializando seguimiento de vehículos...');
-    const mapContainer = document.getElementById('mapContainer');
-    console.log('mapContainer:', mapContainer);
+    console.log('� Inicializando vista de seguimiento...');
     
-    if (!mapContainer) {
-        console.error('❌ mapContainer no encontrado');
+    // Simplemente renderizar la tabla de recolectores
+    renderSeguimientoRecolectores();
+    
+    console.log('✅ Vista de seguimiento inicializada');
+}
+
+function renderSeguimientoRecolectores() {
+    const seguimientoView = document.getElementById('seguimientoView');
+    if (!seguimientoView) {
+        console.error('❌ seguimientoView no encontrado');
         return;
     }
 
-    console.log('📍 Llamando renderVehicles()...');
-    renderVehicles();
-    renderVehicleList();
-    startVehicleAnimation();
-    console.log('✅ Seguimiento inicializado');
+    console.log('📊 Renderizando recolectores. Total:', vehiculos.length);
+
+    const html = `
+        <div class="space-y-6">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-gray-800 mb-1 text-2xl font-bold">Seguimiento de Recolectores</h1>
+                    <p class="text-sm text-gray-500">Estado en vivo de todos los recolectores activos</p>
+                </div>
+                <div class="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold">
+                    ${vehiculos.length} Recolectores
+                </div>
+            </div>
+
+            <!-- Tabla de recolectores -->
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-lg">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">ID</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Nombre</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Conductor</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Teléfono</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Vehículo</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Placa</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Estado</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Ubicación</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaRecolectores">
+                            ${renderFilasRecolectores()}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    seguimientoView.innerHTML = html;
 }
 
+function renderFilasRecolectores() {
+    return vehiculos.map(r => {
+        const estadoBadge = r.estado === 'operativo' 
+            ? '<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold border border-green-300">Operativo</span>'
+            : r.estado === 'mantenimiento'
+            ? '<span class="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold border border-yellow-300">Mantenimiento</span>'
+            : '<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold border border-red-300">Detenido</span>';
+
+        return `
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <td class="px-6 py-4 text-sm font-semibold text-gray-800">#${r.id}</td>
+                <td class="px-6 py-4 text-sm text-gray-700">${r.matricula || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm text-gray-700">${r.conductor || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm text-gray-700">${r.telefono || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm text-gray-700">${r.ruta || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm text-gray-700"><strong>${r.placa || 'N/A'}</strong></td>
+                <td class="px-6 py-4">${estadoBadge}</td>
+                <td class="px-6 py-4 text-sm text-gray-600">
+                    <span class="text-xs">📍 ${(r.lat || 0).toFixed(4)}, ${(r.lng || 0).toFixed(4)}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ========== FUNCIONES ANTIGUAS (DEPRECATED - NO SE USAN) ==========
+/*
 function renderVehicles() {
     const mapContainer = document.getElementById('mapContainer');
     if (!mapContainer) {
@@ -249,126 +352,28 @@ function renderVehicles() {
     
     console.log('✅ Vehículos renderizados');
 }
+*/
 
+// ========== FUNCIONES NO USADAS ==========
+/*
 function createVehicleMarker(vehiculo) {
-    const container = document.createElement('div');
-    container.className = 'vehicle-marker';
-    container.style.left = `${vehiculo.x}%`;
-    container.style.top = `${vehiculo.y}%`;
-    container.dataset.vehiculoId = vehiculo.id;
-
-    const colors = getEstadoColor(vehiculo.estado);
-    const isSelected = selectedVehiculo?.id === vehiculo.id;
-
-    let html = '<div class="relative">';
-    
-    // Efecto pulse para vehículos operativos
-    if (vehiculo.estado === 'operativo') {
-        html += `<div class="absolute inset-0 w-12 h-12 rounded-full ${colors.bg} opacity-30 animate-pulse"></div>`;
-    }
-    
-    // Marcador principal
-    html += `<div class="relative w-12 h-12 ${colors.bg} rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 cursor-pointer border-2 border-white">
-        <i class="fas fa-truck text-white text-lg"></i>
-    </div>`;
-    
-    // Badge con matricula cuando está seleccionado
-    if (isSelected) {
-        html += `<div class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 whitespace-nowrap bg-gradient-to-r ${
-            colors.gradient || 'from-gray-900 to-gray-800'
-        } text-white px-4 py-2 rounded-lg shadow-xl text-sm z-20 border-2 border-white font-semibold">
-            <div>${vehiculo.matricula}</div>
-            <div class="text-xs opacity-90 mt-1">${vehiculo.conductor}</div>
-        </div>`;
-        
-        // Línea conectora
-        html += `<div class="absolute left-1/2 top-12 w-0.5 h-6 bg-gradient-to-b ${colors.gradient || 'from-gray-900 to-gray-800'} transform -translate-x-1/2 z-10"></div>`;
-    }
-
-    html += '</div>';
-    container.innerHTML = html;
-
-    container.addEventListener('click', () => {
-        selectedVehiculo = vehiculo;
-        renderVehicles();
-        renderVehicleList();
-    });
-
-    return container;
+    // ...código anterior...
 }
 
 function renderVehicleList() {
-    const listContainer = document.getElementById('vehicleList');
-    if (!listContainer) return;
-
-    listContainer.innerHTML = vehiculos.map((vehiculo, index) => {
-        const colors = getEstadoColor(vehiculo.estado);
-        const isSelected = selectedVehiculo?.id === vehiculo.id;
-
-        return `
-            <div class="group bg-white rounded-xl border-2 p-4 cursor-pointer transition-all duration-200 ${
-                isSelected ? `border-blue-500 shadow-xl bg-gradient-to-br ${colors.bgGradient || 'from-blue-50 to-white'}` : 'border-gray-200 hover:border-blue-300 hover:shadow-lg'
-            }" onclick="selectVehiculo(${vehiculo.id})">
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="w-12 h-12 ${colors.bg} rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-all">
-                        <i class="fas fa-truck text-white text-lg"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-gray-900">${vehiculo.matricula}</p>
-                        <p class="text-xs text-gray-600">${vehiculo.conductor}</p>
-                    </div>
-                    <div class="flex-shrink-0">
-                        <div class="w-3 h-3 rounded-full ${colors.bg} shadow-md"></div>
-                    </div>
-                </div>
-
-                <div class="mb-3 space-y-2">
-                    <div class="inline-block">
-                        <span class="px-3 py-1 ${colors.bgLight} ${colors.text} rounded-full text-xs font-semibold border ${colors.border} shadow-sm">
-                            ${vehiculo.estado.charAt(0).toUpperCase() + vehiculo.estado.slice(1)}
-                        </span>
-                    </div>
-                </div>
-
-                <div class="space-y-2 text-sm border-t border-gray-100 pt-3">
-                    <div class="flex items-center gap-2 text-gray-700">
-                        <i class="fas fa-map-pin text-${colors.text.split('-')[1]}-600 w-4"></i>
-                        <span class="text-xs truncate">${vehiculo.ruta}</span>
-                    </div>
-                    ${vehiculo.solicitud ? `
-                        <div class="flex items-center gap-2 text-gray-700">
-                            <i class="fas fa-tasks text-blue-600 w-4"></i>
-                            <span class="text-xs font-semibold">#${vehiculo.solicitud}</span>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
+    // ...código anterior...
 }
 
 function selectVehiculo(vehiculoId) {
-    selectedVehiculo = vehiculos.find(v => v.id === vehiculoId);
-    renderVehicles();
-    renderVehicleList();
+    // ...código anterior...
 }
 
 function startVehicleAnimation() {
-    // Limpiar intervalo anterior si existe
-    if (animationInterval) clearInterval(animationInterval);
-
-    animationInterval = setInterval(() => {
-        vehiculos.forEach(vehiculo => {
-            if (vehiculo.estado === 'operativo') {
-                const moveX = (Math.random() - 0.5) * 4;
-                const moveY = (Math.random() - 0.5) * 4;
-                vehiculo.x = Math.min(Math.max(vehiculo.x + moveX, 5), 95);
-                vehiculo.y = Math.min(Math.max(vehiculo.y + moveY, 5), 95);
-            }
-        });
-        renderVehicles();
-    }, 2500);
+    // ...código anterior...
 }
+*/
+
+// ========== COLORES DE ESTADO ===========
 
 function getEstadoColor(estado) {
     const colors = {
@@ -871,27 +876,20 @@ function renderRutasSugeridas() {
     `;
 }
 
-function initMapaHidalgo() {
-    const mapContainer = document.getElementById('mapContainer');
-    if (!mapContainer) return;
+// DEPRECATED - Map functionality removed for simplification
+// function initMapaHidalgo() { ... }
 
-    // Si el mapa ya existe, destruirlo
-    if (mapaHidalgo) {
-        mapaHidalgo.remove();
-        mapaHidalgo = null;
-        markersHidalgo = {};
-    }
+// DEPRECATED - Map functionality removed for simplification
+// function inicializarMapaConOpenStreetMap() { ... }
 
-    // Crear mapa centrado en Pachuca, Hidalgo
-    mapaHidalgo = L.map('mapContainer').setView([20.0871, -98.7612], 9);
+// DEPRECATED - Map functionality removed for simplification
+// function agregarRecolectoresAlMapa() { ... }
 
-    // Agregar capa de mapa
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19,
-    }).addTo(mapaHidalgo);
+// DEPRECATED - Map functionality removed for simplification
+// function agregarRecolectoresAlMapaLeaflet() { ... }
 
-    // Agregar camiones al mapa
+function renderCamionesListadoOld() {
+    // Agregar camiones al mapa (código antiguo - para referencia)
     camionesHidalgo.forEach(camion => {
         const color = camion.estado === 'en-ruta' ? '#10b981' : camion.estado === 'pausa' ? '#f59e0b' : '#ef4444';
         const icono = L.divIcon({
@@ -929,84 +927,55 @@ function initMapaHidalgo() {
     renderCamionesListado();
 }
 
-function renderCamionesListado() {
-    const listado = document.getElementById('camionesListado');
-    if (!listado) return;
+// DEPRECATED - Map functionality removed
+// function renderCamionesListado() { ... }
 
-    listado.innerHTML = camionesHidalgo.map(camion => {
-        const color = camion.estado === 'en-ruta' ? 'text-green-600' : camion.estado === 'pausa' ? 'text-yellow-600' : 'text-red-600';
-        const bgColor = camion.estado === 'en-ruta' ? 'bg-green-50 border-green-200' : camion.estado === 'pausa' ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200';
-        const estadoLabel = camion.estado === 'en-ruta' ? 'En Ruta' : camion.estado === 'pausa' ? 'Pausa' : 'Detenido';
-
-        return `
-            <div class="p-3 border-2 rounded-lg ${bgColor} hover:shadow-md transition-shadow cursor-pointer" onclick="focusMarker(${camion.id})">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="font-bold text-sm text-gray-900">${camion.placa}</p>
-                        <p class="text-xs text-gray-600">${camion.conductor}</p>
-                        <p class="text-xs text-gray-600">${camion.ciudad}</p>
-                    </div>
-                    <div class="text-right">
-                        <span class="inline-block w-3 h-3 rounded-full ${color}" style="background-color: ${camion.estado === 'en-ruta' ? '#10b981' : camion.estado === 'pausa' ? '#f59e0b' : '#ef4444'};"></span>
-                        <p class="text-xs font-semibold ${color}">${estadoLabel}</p>
-                        <p class="text-xs text-gray-600 mt-1">${camion.recolecciones} recolecciones</p>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function focusMarker(camionId) {
-    const camion = camionesHidalgo.find(c => c.id === camionId);
-    if (camion && mapaHidalgo) {
-        mapaHidalgo.setView([camion.lat, camion.lng], 13);
-        markersHidalgo[camionId]?.openPopup();
-    }
-}
+// DEPRECATED - Map functionality removed
+// function focusMarker(vehiculoId) { ... }
 
 function renderCrearRuta() {
     return `
-        <div class="grid grid-cols-3 gap-6">
-            <!-- Mapa de Hidalgo -->
-            <div class="col-span-2">
-                <div class="bg-gradient-to-br from-white to-gray-50 rounded-xl p-6 border-2 border-gray-200 shadow-md">
-                    <h3 class="text-xl font-bold text-gray-900 mb-1 flex items-center gap-2">
-                        <i class="fas fa-map text-blue-600"></i>Mapa de Hidalgo - Vehículos Activos
-                    </h3>
-                    <p class="text-sm text-gray-600 mb-4">6 camiones de recolección en servicio</p>
-                    
-                    <div id="mapContainer" class="w-full h-96 rounded-lg border-2 border-gray-300 shadow-lg overflow-hidden bg-gray-100"></div>
-                    
-                    <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p class="text-xs text-blue-800 font-semibold">
-                            <i class="fas fa-circle text-green-500 mr-2"></i>Verde = En ruta
-                            <i class="fas fa-circle text-yellow-500 ml-4 mr-2"></i>Amarillo = Pausa
-                            <i class="fas fa-circle text-red-500 ml-4 mr-2"></i>Rojo = Detenido
-                        </p>
-                    </div>
+        <div class="space-y-6">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-gray-800 mb-1 text-2xl font-bold">Crear Rutas</h1>
+                    <p class="text-sm text-gray-500">Gestiona las rutas de recolección</p>
                 </div>
             </div>
 
-            <!-- Controles y camiones -->
-            <div class="space-y-4">
-                <div class="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-md">
-                    <h3 class="text-xl font-bold text-gray-900 mb-1 flex items-center gap-2">
-                        <i class="fas fa-truck text-orange-500"></i>Camiones Activos
-                    </h3>
-                    <p class="text-xs text-gray-600 mb-4">Estado de vehículos en tiempo real</p>
-                    
-                    <div id="camionesListado" class="space-y-2 max-h-96 overflow-y-auto">
-                        <!-- Camiones se cargarán dinámicamente -->
-                    </div>
+            <!-- Tabla de Rutas Activas -->
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-lg">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Ruta #</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Vehículo</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Conductor</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Puntos</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Estado</th>
+                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-semibold text-gray-800">#R001</td>
+                                <td class="px-6 py-4 text-sm text-gray-700">Recolector 01</td>
+                                <td class="px-6 py-4 text-sm text-gray-700">Juan Pérez</td>
+                                <td class="px-6 py-4 text-sm text-gray-700"><span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">12</span></td>
+                                <td class="px-6 py-4 text-sm"><span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Activa</span></td>
+                                <td class="px-6 py-4 text-sm flex gap-2">
+                                    <button onclick="editarRuta(1)" class="text-blue-600 hover:text-blue-800 font-semibold"><i class="fas fa-edit"></i></button>
+                                    <button onclick="eliminarRuta(1)" class="text-red-600 hover:text-red-800 font-semibold"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+            </div>
 
-                <div class="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-4 border-2 border-amber-300 shadow-md">
-                    <p class="text-sm font-semibold text-amber-900 flex items-center gap-2">
-                        <i class="fas fa-exclamation-triangle"></i>Información
-                    </p>
-                    <p class="text-xs text-amber-800 mt-2">Los camiones mostrados son de prueba. Haz clic en uno para ver detalles</p>
-                </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p class="text-sm text-blue-800"><i class="fas fa-info-circle mr-2"></i>Las rutas se pueden crear y gestionar desde aquí. Actualmente se muestran rutas de prueba.</p>
             </div>
         </div>
     `;
@@ -1841,37 +1810,14 @@ function cerrarQuejaModal() {
 
 function asignarSolucion(tipo) {
     const acciones = {
-        'marcar-resuelta': { label: 'Marcada como Resuelta', icon: 'check-circle', bg: 'bg-green-500 to-green-600' },
-        'cambiar-recolector': { label: 'Recolector Reasignado', icon: 'sync', bg: 'bg-orange-500 to-orange-600' },
-        'en-revision': { label: 'Puesta en Revisión', icon: 'user', bg: 'bg-blue-500 to-blue-600' },
-        'cerrar': { label: 'Queja Cerrada', icon: 'times-circle', bg: 'bg-gray-500 to-gray-600' },
+        'marcar-resuelta': { label: 'Marcada como Resuelta', icon: 'check-circle' },
+        'cambiar-recolector': { label: 'Recolector Reasignado', icon: 'sync' },
+        'en-revision': { label: 'Puesta en Revisión', icon: 'user' },
+        'cerrar': { label: 'Queja Cerrada', icon: 'times-circle' },
     };
 
     const accion = acciones[tipo];
     if (!accion) return;
-
-    // Mostrar notificación con estilos inline
-    const notification = document.createElement('div');
-    const styles = {
-        'marcar-resuelta': 'background: linear-gradient(135deg, #10b981, #059669);',
-        'cambiar-recolector': 'background: linear-gradient(135deg, #f97316, #ea580c);',
-        'en-revision': 'background: linear-gradient(135deg, #3b82f6, #1d4ed8);',
-        'cerrar': 'background: linear-gradient(135deg, #6b7280, #4b5563);',
-    };
-
-    notification.innerHTML = `
-        <div class="fixed top-4 right-4 text-white rounded-lg shadow-xl p-4 flex items-center gap-3 z-50 animate-slide-in" style="${styles[tipo]}">
-            <i class="fas fa-${accion.icon} text-2xl"></i>
-            <div>
-                <p class="font-bold">¡Éxito!</p>
-                <p class="text-sm opacity-90">Queja #${quejaSeleccionada.id} - ${accion.label}</p>
-            </div>
-            <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white opacity-70 hover:opacity-100">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    `;
-    document.body.appendChild(notification.firstElementChild);
 
     // Determinar nuevo estado
     let nuevoEstado = quejaSeleccionada.estado;
@@ -1883,40 +1829,100 @@ function asignarSolucion(tipo) {
         nuevoEstado = 'cerrada';
     }
 
+    console.log(`🔄 Actualizando queja #${quejaSeleccionada.id} a estado: ${nuevoEstado}`);
+
+    // Mostrar notificación de procesamiento
+    const styles = {
+        'marcar-resuelta': 'background: linear-gradient(135deg, #10b981, #059669);',
+        'cambiar-recolector': 'background: linear-gradient(135deg, #f97316, #ea580c);',
+        'en-revision': 'background: linear-gradient(135deg, #3b82f6, #1d4ed8);',
+        'cerrar': 'background: linear-gradient(135deg, #6b7280, #4b5563);',
+    };
+
+    const notification = document.createElement('div');
+    notification.innerHTML = `
+        <div class="fixed top-4 right-4 text-white rounded-lg shadow-xl p-4 flex items-center gap-3 z-50" style="${styles[tipo]}">
+            <i class="fas fa-spinner fa-spin text-2xl"></i>
+            <div>
+                <p class="font-bold">Procesando...</p>
+                <p class="text-sm opacity-90">Queja #${quejaSeleccionada.id}</p>
+            </div>
+        </div>
+    `;
+    const notifEl = document.body.appendChild(notification.firstElementChild);
+
     // Persistir en backend
     (async () => {
         try {
+            console.log(`📡 Enviando actualización a /api/admin/quejas/${quejaSeleccionada.id}/estado`);
             const res = await fetch(`/api/admin/quejas/${quejaSeleccionada.id}/estado`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ estado: nuevoEstado, prioridad: quejaSeleccionada.prioridad || 'baja' })
             });
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+
             const resp = await res.json();
+            console.log('✅ Respuesta del backend:', resp);
+
             if (resp && resp.success) {
                 const estadoConfirmado = resp.estado || nuevoEstado;
+                console.log(`✅ Estado confirmado en BD: ${estadoConfirmado}`);
+                
+                // Actualizar en memoria
                 quejaSeleccionada.estado = estadoConfirmado;
                 const idx = quejas.findIndex(q => q.id === quejaSeleccionada.id);
-                if (idx !== -1) quejas[idx].estado = estadoConfirmado;
-                // Refrescar tabla de inmediato
-                renderReportes();
+                if (idx !== -1) {
+                    quejas[idx].estado = estadoConfirmado;
+                    console.log(`✅ Actualizada en arreglo (índice ${idx})`);
+                }
+
+                // Mostrar éxito
+                notifEl.innerHTML = `
+                    <div class="fixed top-4 right-4 text-white rounded-lg shadow-xl p-4 flex items-center gap-3 z-50" style="${styles[tipo]}">
+                        <i class="fas fa-${accion.icon} text-2xl"></i>
+                        <div>
+                            <p class="font-bold">¡Éxito!</p>
+                            <p class="text-sm opacity-90">${accion.label}</p>
+                        </div>
+                        <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white opacity-70 hover:opacity-100">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+
+                // Cerrar modal y refrescar tabla
+                setTimeout(() => {
+                    cerrarQuejaModal();
+                    refrescarQuejas().then(() => renderReportes()).catch(e => console.error('Error refrescando reportes:', e));
+                }, 1500);
             } else {
-                console.warn('No se pudo actualizar la queja en el backend:', resp);
+                throw new Error(resp?.error || 'Respuesta sin success');
             }
         } catch (e) {
-            console.error('Error persistiendo estado de queja:', e);
+            console.error('❌ Error actualizando queja:', e);
+            notifEl.innerHTML = `
+                <div class="fixed top-4 right-4 text-white rounded-lg shadow-xl p-4 flex items-center gap-3 z-50" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                    <i class="fas fa-exclamation-circle text-2xl"></i>
+                    <div>
+                        <p class="font-bold">Error</p>
+                        <p class="text-sm opacity-90">${e.message}</p>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white opacity-70 hover:opacity-100">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        } finally {
+            // Remover notificación después de 5s
+            setTimeout(() => {
+                notifEl?.remove();
+            }, 5000);
         }
     })();
-
-    // Cerrar modal
-    setTimeout(() => {
-        cerrarQuejaModal();
-        renderReportes();
-    }, 1500);
-
-    // Remover notificación
-    setTimeout(() => {
-        document.querySelector('.animate-slide-in')?.remove();
-    }, 4000);
 }
 
 // Función para cerrar sesión
