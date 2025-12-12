@@ -435,7 +435,23 @@ def get_solicitudes():
                 query = query.eq('estado', filtro)
             
             response = query.order('fecha_solicitud', desc=True).execute()
-            return jsonify(response.data if response.data else [])
+            data = response.data if response.data else []
+            # Vincular estado con actividad_recolecciones (último estado)
+            try:
+                for row in data:
+                    id_s = row.get('id_solicitud')
+                    if id_s:
+                        est = supabase_client.table('actividad_recolecciones') \
+                            .select('estado_recoleccion, fecha_finalizacion') \
+                            .eq('id_solicitud', id_s) \
+                            .order('fecha_finalizacion', desc=True) \
+                            .limit(1) \
+                            .execute()
+                        if est.data:
+                            row['estado'] = est.data[0].get('estado_recoleccion') or row.get('estado')
+            except Exception as _e:
+                print(f'⚠️ No se pudo vincular estado desde actividad: {_e}')
+            return jsonify(data)
         except Exception as e:
             print(f'Error consultando Supabase: {e}')
             return jsonify({'error': 'Error al consultar solicitudes'}), 500
@@ -940,6 +956,83 @@ def actualizar_estado_solicitud(id_solicitud):
     except Exception as e:
         conn.rollback()
         return jsonify({'success': False, 'error': str(e)}), 400
+    finally:
+        conn.close()
+
+# ==================== ESTADO DESDE ACTIVIDAD ====================
+def _ultimo_estado_actividad_supabase(id_solicitud: int):
+    try:
+        resp = supabase_client.table('actividad_recolecciones') \
+            .select('estado_recoleccion, fecha_finalizacion, fecha_inicio') \
+            .eq('id_solicitud', id_solicitud) \
+            .order('fecha_finalizacion', desc=True) \
+            .limit(1) \
+            .execute()
+        if resp.data:
+            return resp.data[0].get('estado_recoleccion')
+    except Exception as e:
+        print(f'Error obteniendo último estado (Supabase): {e}')
+    return None
+
+def _ultimo_estado_actividad_sqlite(conn, id_solicitud: int):
+    row = conn.execute(
+        'SELECT estado_recoleccion FROM actividad_recolecciones WHERE id_solicitud = ? ORDER BY COALESCE(fecha_finalizacion, fecha_inicio) DESC LIMIT 1',
+        (id_solicitud,)
+    ).fetchone()
+    return row['estado_recoleccion'] if row else None
+
+@app.route('/api/recoleccion/estado-actual/<int:id_solicitud>')
+def estado_actual_recoleccion(id_solicitud: int):
+    """Devuelve el estado actual de una recolección según la última entrada en actividad_recolecciones."""
+    if supabase_client:
+        estado = _ultimo_estado_actividad_supabase(id_solicitud)
+        if estado:
+            return jsonify({'id_solicitud': id_solicitud, 'estado': estado})
+    conn = get_db_connection()
+    try:
+        estado = _ultimo_estado_actividad_sqlite(conn, id_solicitud)
+        if estado:
+            return jsonify({'id_solicitud': id_solicitud, 'estado': estado})
+        return jsonify({'id_solicitud': id_solicitud, 'estado': None}), 404
+    finally:
+        conn.close()
+
+@app.route('/api/admin/sincronizar-estados', methods=['POST'])
+def sincronizar_estados_desde_actividad():
+    """Recalcula y sincroniza `solicitudes_recoleccion.estado` según la última actividad registrada."""
+    actualizados = 0
+    errores = []
+    if supabase_client:
+        try:
+            sol_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud').execute()
+            for sol in sol_resp.data or []:
+                id_s = sol['id_solicitud']
+                estado = _ultimo_estado_actividad_supabase(id_s)
+                if estado:
+                    try:
+                        supabase_client.table('solicitudes_recoleccion').update({'estado': estado}).eq('id_solicitud', id_s).execute()
+                        actualizados += 1
+                    except Exception as e:
+                        errores.append({'id_solicitud': id_s, 'error': str(e)})
+            return jsonify({'success': True, 'actualizados': actualizados, 'errores': errores})
+        except Exception as e:
+            errores.append({'scope': 'supabase', 'error': str(e)})
+    conn = get_db_connection()
+    try:
+        rows = conn.execute('SELECT id_solicitud FROM solicitudes_recoleccion').fetchall()
+        for row in rows:
+            id_s = row['id_solicitud']
+            estado = _ultimo_estado_actividad_sqlite(conn, id_s)
+            if estado:
+                try:
+                    conn.execute('UPDATE solicitudes_recoleccion SET estado = ? WHERE id_solicitud = ?', (estado, id_s))
+                    actualizados += 1
+                except Exception as e:
+                    errores.append({'id_solicitud': id_s, 'error': str(e)})
+        conn.commit()
+        return jsonify({'success': True, 'actualizados': actualizados, 'errores': errores})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'actualizados': actualizados, 'errores': errores}), 500
     finally:
         conn.close()
 
@@ -1754,6 +1847,42 @@ def admin_get_recolectores():
     except Exception as exc:
         print(f'Error consultando recolectores: {exc}')
         return jsonify({'success': False, 'error': 'No se pudieron cargar los recolectores'}), 500
+@app.route('/api/admin/recolectores/<int:id_recolector>', methods=['GET'])
+def admin_get_recolector(id_recolector: int):
+    """Obtiene un recolector por ID."""
+    if not supabase_client:
+        return jsonify({'success': False, 'error': 'Supabase no configurado'}), 500
+    try:
+        resp = supabase_client.table('recolectores').select('*').eq('id_recolector', id_recolector).limit(1).execute()
+        row = (resp.data or [None])[0]
+        if not row:
+            return jsonify({'success': False, 'error': 'Recolector no encontrado'}), 404
+        return jsonify(row)
+    except Exception as exc:
+        print(f'Error obteniendo recolector #{id_recolector}: {exc}')
+        return jsonify({'success': False, 'error': 'Error consultando recolector'}), 500
+
+@app.route('/api/admin/recolectores/<int:id_recolector>', methods=['PUT'])
+def admin_update_recolector(id_recolector: int):
+    """Actualiza datos básicos de un recolector."""
+    if not supabase_client:
+        return jsonify({'success': False, 'error': 'Supabase no configurado'}), 500
+    data = request.get_json() or {}
+    update = {}
+    for key in ('nombre', 'apellido', 'correo', 'telefono', 'vehiculo', 'placa'):
+        if key in data and data[key] is not None:
+            update[key] = data[key]
+    if not update:
+        return jsonify({'success': False, 'error': 'Sin cambios'}), 400
+    try:
+        supabase_client.table('recolectores').update(update).eq('id_recolector', id_recolector).execute()
+        # Devolver fila actualizada
+        resp = supabase_client.table('recolectores').select('*').eq('id_recolector', id_recolector).limit(1).execute()
+        row = (resp.data or [None])[0]
+        return jsonify({'success': True, 'recolector': row})
+    except Exception as exc:
+        print(f'Error actualizando recolector #{id_recolector}: {exc}')
+        return jsonify({'success': False, 'error': 'Error actualizando recolector'}), 500
 
 
 @app.route('/api/admin/vehiculos')

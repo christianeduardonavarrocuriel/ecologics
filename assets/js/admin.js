@@ -182,7 +182,6 @@ const pageTitles = {
     panel: 'Panel General',
     solicitudes: 'Solicitudes',
     recolectores: 'Recolectores',
-    rutas: 'Rutas',
     seguimiento: 'Seguimiento de Vehículos',
     reportes: 'Reportes y Quejas'
 };
@@ -232,8 +231,6 @@ function changeView(view) {
         setTimeout(() => initSeguimiento(), 100);
     } else if (view === 'solicitudes') {
         renderSolicitudes();
-    } else if (view === 'rutas') {
-        renderRutas();
     } else if (view === 'recolectores') {
         renderRecolectores();
     } else if (view === 'reportes') {
@@ -575,7 +572,7 @@ function renderRecolectores() {
                 <div class="flex items-center justify-between">
                     <div>
                         <h1 class="text-3xl font-bold mb-2">Equipo de Recolectores</h1>
-                        <p class="text-green-100">Gestión y monitoreo del personal de recolección</p>
+                        <p class="text-green-100">Información real sincronizada desde la base de datos</p>
                     </div>
                     <div class="text-5xl opacity-20">
                         <i class="fas fa-people-carry"></i>
@@ -604,20 +601,16 @@ function renderRecolectores() {
                         <div class="flex items-start justify-between mb-4">
                             <div class="flex items-center gap-4">
                                 <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-md">
-                                    ${recolector.nombre.charAt(0)}
+                                    ${(recolector.nombre || 'R').charAt(0)}
                                 </div>
                                 <div>
-                                    <h3 class="text-lg font-bold text-gray-900">${recolector.nombre}</h3>
-                                    <p class="text-xs text-gray-600">Supervisor: ${recolector.supervisor}</p>
+                                    <h3 class="text-lg font-bold text-gray-900">${[recolector.nombre, recolector.apellido].filter(Boolean).join(' ')}</h3>
+                                    <p class="text-xs text-gray-600">${recolector.correo || ''}</p>
                                 </div>
                             </div>
                             <div class="text-right">
-                                <div class="flex items-center gap-1 bg-gradient-to-r from-yellow-100 to-yellow-50 px-3 py-1 rounded-full border border-yellow-200">
-                                    <i class="fas fa-star text-yellow-500"></i>
-                                    <span class="text-sm font-bold text-gray-900">${recolector.rating}</span>
-                                </div>
-                                <span class="text-xs mt-2 px-2 py-1 rounded-full ${recolector.estado === 'activo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}">
-                                    ${recolector.estado === 'activo' ? '<i class="fas fa-circle text-green-500 mr-1"></i>Activo' : 'Inactivo'}
+                                <span class="text-xs mt-2 px-2 py-1 rounded-full bg-green-100 text-green-700">
+                                    <i class="fas fa-circle text-green-500 mr-1"></i>Activo
                                 </span>
                             </div>
                         </div>
@@ -626,11 +619,11 @@ function renderRecolectores() {
                         <div class="grid grid-cols-2 gap-3 mb-4">
                             <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
                                 <p class="text-xs font-semibold text-gray-600 uppercase">Asignadas</p>
-                                <p class="text-2xl font-bold text-blue-600">${recolector.asignaciones}</p>
+                                <p class="text-2xl font-bold text-blue-600">${recolector.asignaciones_totales || 0}</p>
                             </div>
                             <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 border border-green-200">
                                 <p class="text-xs font-semibold text-gray-600 uppercase">Completadas</p>
-                                <p class="text-2xl font-bold text-green-600">${recolector.completadas}</p>
+                                <p class="text-2xl font-bold text-green-600">${recolector.completadas || 0}</p>
                             </div>
                         </div>
 
@@ -640,14 +633,21 @@ function renderRecolectores() {
                                 <i class="fas fa-car text-gray-600 w-4"></i>
                                 <div class="flex-1">
                                     <p class="text-xs text-gray-600">Vehículo</p>
-                                    <p class="text-sm font-semibold text-gray-900">${recolector.vehiculo}</p>
+                                    <p class="text-sm font-semibold text-gray-900">${recolector.vehiculo || 'N/A'}</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-3 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                 <i class="fas fa-phone text-gray-600 w-4"></i>
                                 <div class="flex-1">
                                     <p class="text-xs text-gray-600">Teléfono</p>
-                                    <p class="text-sm font-semibold text-gray-900">${recolector.telefono}</p>
+                                    <p class="text-sm font-semibold text-gray-900">${recolector.telefono || 'N/A'}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                <i class="fas fa-id-card text-gray-600 w-4"></i>
+                                <div class="flex-1">
+                                    <p class="text-xs text-gray-600">Placa</p>
+                                    <p class="text-sm font-semibold text-gray-900">${recolector.placa || 'N/A'}</p>
                                 </div>
                             </div>
                         </div>
@@ -656,22 +656,32 @@ function renderRecolectores() {
                         <div class="mb-4">
                             <div class="flex justify-between items-center mb-1">
                                 <p class="text-xs font-semibold text-gray-600">Eficiencia</p>
-                                <p class="text-xs font-bold text-gray-900">${Math.round((recolector.completadas / recolector.asignaciones) * 100)}%</p>
+                                <p class="text-xs font-bold text-gray-900">${(() => {
+                                    const a = Number(recolector.asignaciones_totales || 0);
+                                    const c = Number(recolector.completadas || 0);
+                                    if (!a) return 0;
+                                    return Math.round((c / a) * 100);
+                                })()}%</p>
                             </div>
                             <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div class="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full" style="width: ${(recolector.completadas / recolector.asignaciones) * 100}%"></div>
+                                <div class="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full" style="width: ${(() => {
+                                    const a = Number(recolector.asignaciones_totales || 0);
+                                    const c = Number(recolector.completadas || 0);
+                                    if (!a) return 0;
+                                    return (c / a) * 100;
+                                })()}%"></div>
                             </div>
                         </div>
 
                         <!-- Acciones -->
                         <div class="flex gap-2 pt-4 border-t border-gray-200">
-                            <button onclick="verHistorialRecolector(${recolector.id})" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2 px-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1">
+                            <button onclick="verHistorialRecolector(${recolector.id_recolector || recolector.id})" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2 px-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1">
                                 <i class="fas fa-history"></i>Historial
                             </button>
-                            <button onclick="editarRecolector(${recolector.id})" class="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-2 px-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1">
+                            <button onclick="editarRecolector(${recolector.id_recolector || recolector.id})" class="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-2 px-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1">
                                 <i class="fas fa-edit"></i>Editar
                             </button>
-                            <button onclick="eliminarRecolector(${recolector.id})" class="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-2 px-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1">
+                            <button onclick="eliminarRecolector(${recolector.id_recolector || recolector.id})" class="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-2 px-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1">
                                 <i class="fas fa-trash"></i>Eliminar
                             </button>
                         </div>
@@ -683,29 +693,19 @@ function renderRecolectores() {
 }
 
 function verHistorialRecolector(id) {
-    const recolector = recolectores.find(r => r.id === id);
+    const recolector = recolectores.find(r => (r.id_recolector || r.id) === id);
     if (!recolector) return;
 
     let contenido = `<div class="space-y-3">
         <div class="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
-            <p class="text-sm font-semibold text-gray-900">${recolector.nombre}</p>
-            <p class="text-xs text-gray-600">Email: ${recolector.email}</p>
-            <p class="text-xs text-gray-600">Teléfono: ${recolector.telefono}</p>
+            <p class="text-sm font-semibold text-gray-900">${[recolector.nombre, recolector.apellido].filter(Boolean).join(' ')}</p>
+            <p class="text-xs text-gray-600">Email: ${recolector.correo || ''}</p>
+            <p class="text-xs text-gray-600">Teléfono: ${recolector.telefono || ''}</p>
         </div>
 
         <div class="border-t border-gray-200 pt-3">
             <p class="text-sm font-semibold text-gray-900 mb-2">Últimas Recolecciones:</p>
-            ${recolector.historial.map(h => `
-                <div class="bg-white p-2 rounded border border-gray-200 mb-2">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-xs font-semibold text-gray-900">${h.residuo} - ${h.kilos}kg</p>
-                            <p class="text-xs text-gray-600">${h.fecha}</p>
-                        </div>
-                        <span class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded font-semibold">Completada</span>
-                    </div>
-                </div>
-            `).join('')}
+            <div class="text-xs text-gray-600">Próximamente: historial desde actividad_recolecciones</div>
         </div>
     </div>`;
 
@@ -717,7 +717,98 @@ function verHistorialRecolector(id) {
 }
 
 function editarRecolector(id) {
-    alert(`Editar recolector #${id}`);
+    const modal = document.getElementById('solicitudModal');
+    const content = document.getElementById('modalContent');
+    if (!modal || !content) {
+        console.error('❌ Modal de solicitud no disponible');
+        return;
+    }
+
+    // Cargar datos del recolector
+    fetch(`/api/admin/recolectores/${id}`)
+        .then(res => res.json())
+        .then(rec => {
+            if (rec && rec.success === false) {
+                throw new Error(rec.error || 'No se pudo cargar el recolector');
+            }
+            const formHtml = `
+                <div class="space-y-4">
+                    <h2 class="text-lg font-bold text-gray-900">Editar Recolector #${id}</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm text-gray-600">Nombre</label>
+                            <input id="recNombre" class="mt-1 w-full border rounded px-3 py-2" value="${rec.nombre || ''}" />
+                        </div>
+                        <div>
+                            <label class="text-sm text-gray-600">Apellido</label>
+                            <input id="recApellido" class="mt-1 w-full border rounded px-3 py-2" value="${rec.apellido || ''}" />
+                        </div>
+                        <div>
+                            <label class="text-sm text-gray-600">Correo</label>
+                            <input id="recCorreo" class="mt-1 w-full border rounded px-3 py-2" value="${rec.correo || ''}" />
+                        </div>
+                        <div>
+                            <label class="text-sm text-gray-600">Teléfono</label>
+                            <input id="recTelefono" class="mt-1 w-full border rounded px-3 py-2" value="${rec.telefono || ''}" />
+                        </div>
+                        <div>
+                            <label class="text-sm text-gray-600">Vehículo</label>
+                            <input id="recVehiculo" class="mt-1 w-full border rounded px-3 py-2" value="${rec.vehiculo || ''}" />
+                        </div>
+                        <div>
+                            <label class="text-sm text-gray-600">Placa</label>
+                            <input id="recPlaca" class="mt-1 w-full border rounded px-3 py-2" value="${rec.placa || ''}" />
+                        </div>
+                    </div>
+                    <div class="flex gap-2 justify-end pt-2">
+                        <button id="btnCancelarEdit" class="px-4 py-2 rounded bg-gray-100 text-gray-800 border">Cancelar</button>
+                        <button id="btnGuardarEdit" class="px-4 py-2 rounded bg-green-600 text-white">Guardar</button>
+                    </div>
+                </div>
+            `;
+            content.innerHTML = formHtml;
+            modal.classList.remove('hidden');
+
+            document.getElementById('btnCancelarEdit').onclick = () => modal.classList.add('hidden');
+            document.getElementById('btnGuardarEdit').onclick = async () => {
+                const payload = {
+                    nombre: document.getElementById('recNombre').value.trim(),
+                    apellido: document.getElementById('recApellido').value.trim(),
+                    correo: document.getElementById('recCorreo').value.trim(),
+                    telefono: document.getElementById('recTelefono').value.trim(),
+                    vehiculo: document.getElementById('recVehiculo').value.trim(),
+                    placa: document.getElementById('recPlaca').value.trim(),
+                };
+                try {
+                    const res = await fetch(`/api/admin/recolectores/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const out = await res.json();
+                    if (!res.ok || (out && out.success === false)) {
+                        throw new Error(out.error || `HTTP ${res.status}`);
+                    }
+                    // Actualizar lista en memoria si coincide el id
+                    const idx = recolectores.findIndex(r => (r.id_recolector || r.id) === id);
+                    if (idx >= 0) {
+                        const nuevo = out.recolector || payload;
+                        recolectores[idx] = {
+                            ...recolectores[idx],
+                            ...nuevo,
+                        };
+                    }
+                    modal.classList.add('hidden');
+                    // Re-render de la vista
+                    renderRecolectores();
+                } catch (e) {
+                    alert(`Error guardando cambios: ${e.message}`);
+                }
+            };
+        })
+        .catch(err => {
+            alert(`Error cargando recolector: ${err.message}`);
+        });
 }
 
 function eliminarRecolector(id) {
@@ -730,461 +821,6 @@ function abrirModalAgregarRecolector() {
     alert('Agregar nuevo recolector');
 }
 
-// ========== RUTAS ==========
-
-function renderRutas() {
-    const rutasView = document.getElementById('rutasView');
-    if (!rutasView) return;
-
-    rutasView.innerHTML = `
-        <div class="space-y-6">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-amber-600 to-orange-600 rounded-xl p-8 text-white shadow-lg">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-3xl font-bold mb-2">Gestión de Rutas</h1>
-                        <p class="text-amber-100">Crea, gestiona y monitorea las rutas de recolección</p>
-                    </div>
-                    <div class="text-5xl opacity-20">
-                        <i class="fas fa-route"></i>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tabs -->
-            <div class="bg-white rounded-xl border border-gray-200 p-1 shadow-md flex gap-1">
-                <button onclick="cambiarVistaRutas('sugeridas')" class="vista-ruta-btn flex-1 ${vistaRutasActual === 'sugeridas' ? 'active' : ''}" data-vista="sugeridas">
-                    <i class="fas fa-lightbulb mr-2"></i>Rutas Sugeridas
-                </button>
-                <button onclick="cambiarVistaRutas('crear')" class="vista-ruta-btn flex-1 ${vistaRutasActual === 'crear' ? 'active' : ''}" data-vista="crear">
-                    <i class="fas fa-plus mr-2"></i>Crear Ruta
-                </button>
-                <button onclick="cambiarVistaRutas('activas')" class="vista-ruta-btn flex-1 ${vistaRutasActual === 'activas' ? 'active' : ''}" data-vista="activas">
-                    <i class="fas fa-road mr-2"></i>Rutas Activas
-                </button>
-            </div>
-
-            <!-- Contenido según vista -->
-            <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-md">
-                ${vistaRutasActual === 'sugeridas' ? renderRutasSugeridas() : ''}
-                ${vistaRutasActual === 'crear' ? renderCrearRuta() : ''}
-                ${vistaRutasActual === 'activas' ? renderRutasActivas() : ''}
-            </div>
-        </div>
-    `;
-
-    // Agregar estilos para tabs mejorados
-    const style = document.createElement('style');
-    style.textContent = `
-        .vista-ruta-btn {
-            padding: 14px 20px;
-            font-weight: 600;
-            color: #666;
-            border: none;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            background: none;
-            font-size: 14px;
-            border-radius: 8px;
-            margin: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            white-space: nowrap;
-        }
-        
-        .vista-ruta-btn:hover {
-            color: #333;
-            background: rgba(99, 102, 241, 0.1);
-        }
-        
-        .vista-ruta-btn.active {
-            color: #fff;
-            background: linear-gradient(135deg, #f59e0b, #f97316);
-            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
-        }
-    `;
-    if (!document.querySelector('style[data-admin-tabs]')) {
-        style.setAttribute('data-admin-tabs', 'true');
-        document.head.appendChild(style);
-    }
-}
-
-function cambiarVistaRutas(vista) {
-    vistaRutasActual = vista;
-    pointsRuta = [];
-    isDrawingRuta = false;
-    renderRutas();
-    
-    // Inicializar mapa si es la vista de crear
-    if (vista === 'crear') {
-        setTimeout(() => initMapaHidalgo(), 100);
-    }
-}
-
-function renderRutasSugeridas() {
-    return `
-        <div class="space-y-4">
-            ${rutasData.sugeridas.map(ruta => `
-                <div class="bg-gradient-to-br from-blue-50 via-white to-blue-50 rounded-lg p-6 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl transition-all">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="flex items-start gap-4">
-                            <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white shadow-md">
-                                <i class="fas fa-lightbulb text-lg"></i>
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-bold text-gray-900">${ruta.nombre}</h3>
-                                <p class="text-sm text-gray-600 mt-1">${ruta.descripcion}</p>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-xs font-semibold text-gray-600 uppercase">Sugerida por</p>
-                            <p class="text-sm font-bold text-gray-900">${ruta.usuario}</p>
-                            <p class="text-xs text-gray-500 mt-1">${ruta.fecha}</p>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-3 gap-3 mb-4">
-                        <div class="bg-white rounded-lg p-3 border border-blue-200 text-center hover:bg-blue-50 transition-colors">
-                            <p class="text-xs font-semibold text-gray-600 uppercase">Puntos</p>
-                            <p class="text-2xl font-bold text-blue-600 mt-1">${ruta.puntos}</p>
-                        </div>
-                        <div class="bg-white rounded-lg p-3 border border-blue-200 text-center hover:bg-blue-50 transition-colors">
-                            <p class="text-xs font-semibold text-gray-600 uppercase">ID Ruta</p>
-                            <p class="text-2xl font-bold text-gray-900 mt-1">#${ruta.id}</p>
-                        </div>
-                        <div class="bg-white rounded-lg p-3 border border-blue-200 text-center hover:bg-blue-50 transition-colors">
-                            <p class="text-xs font-semibold text-gray-600 uppercase">Distancia Est.</p>
-                            <p class="text-2xl font-bold text-amber-600 mt-1">${ruta.puntos * 0.5}km</p>
-                        </div>
-                    </div>
-                    
-                    <div class="flex gap-2">
-                        <button onclick="aceptarRutaSugerida(${ruta.id})" class="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
-                            <i class="fas fa-check-circle"></i>Aceptar
-                        </button>
-                        <button onclick="rechazarRutaSugerida(${ruta.id})" class="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
-                            <i class="fas fa-times-circle"></i>Rechazar
-                        </button>
-                        <button onclick="verDetallesRuta(${ruta.id})" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
-                            <i class="fas fa-eye"></i>Ver
-                        </button>
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `;
-}
-
-// DEPRECATED - Map functionality removed for simplification
-// function initMapaHidalgo() { ... }
-
-// DEPRECATED - Map functionality removed for simplification
-// function inicializarMapaConOpenStreetMap() { ... }
-
-// DEPRECATED - Map functionality removed for simplification
-// function agregarRecolectoresAlMapa() { ... }
-
-// DEPRECATED - Map functionality removed for simplification
-// function agregarRecolectoresAlMapaLeaflet() { ... }
-
-function renderCamionesListadoOld() {
-    // Agregar camiones al mapa (código antiguo - para referencia)
-    camionesHidalgo.forEach(camion => {
-        const color = camion.estado === 'en-ruta' ? '#10b981' : camion.estado === 'pausa' ? '#f59e0b' : '#ef4444';
-        const icono = L.divIcon({
-            html: `
-                <div class="relative">
-                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg" style="background-color: ${color}; border: 3px solid white;">
-                        <i class="fas fa-truck"></i>
-                    </div>
-                </div>
-            `,
-            iconSize: [40, 40],
-            className: 'custom-marker'
-        });
-
-        const marker = L.marker([camion.lat, camion.lng], { icon: icono }).addTo(mapaHidalgo);
-        
-        const popupContent = `
-            <div class="p-3 min-w-48">
-                <h4 class="font-bold text-gray-900 mb-2">${camion.placa}</h4>
-                <p class="text-xs text-gray-600"><strong>Conductor:</strong> ${camion.conductor}</p>
-                <p class="text-xs text-gray-600"><strong>Ciudad:</strong> ${camion.ciudad}</p>
-                <p class="text-xs text-gray-600"><strong>Recolecciones:</strong> ${camion.recolecciones}</p>
-                <div class="mt-2 flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full" style="background-color: ${color};"></span>
-                    <span class="text-xs font-semibold text-gray-900">${camion.estado === 'en-ruta' ? 'En Ruta' : camion.estado === 'pausa' ? 'En Pausa' : 'Detenido'}</span>
-                </div>
-            </div>
-        `;
-        
-        marker.bindPopup(popupContent);
-        markersHidalgo[camion.id] = marker;
-    });
-
-    // Renderizar lista de camiones
-    renderCamionesListado();
-}
-
-// DEPRECATED - Map functionality removed
-// function renderCamionesListado() { ... }
-
-// DEPRECATED - Map functionality removed
-// function focusMarker(vehiculoId) { ... }
-
-function renderCrearRuta() {
-    return `
-        <div class="space-y-6">
-            <div class="flex items-center justify-between mb-6">
-                <div>
-                    <h1 class="text-gray-800 mb-1 text-2xl font-bold">Crear Rutas</h1>
-                    <p class="text-sm text-gray-500">Gestiona las rutas de recolección</p>
-                </div>
-            </div>
-
-            <!-- Tabla de Rutas Activas -->
-            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-lg">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Ruta #</th>
-                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Vehículo</th>
-                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Conductor</th>
-                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Puntos</th>
-                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Estado</th>
-                                <th class="text-left px-6 py-4 text-sm text-gray-700 font-semibold">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr class="border-b border-gray-100 hover:bg-gray-50">
-                                <td class="px-6 py-4 text-sm font-semibold text-gray-800">#R001</td>
-                                <td class="px-6 py-4 text-sm text-gray-700">Recolector 01</td>
-                                <td class="px-6 py-4 text-sm text-gray-700">Juan Pérez</td>
-                                <td class="px-6 py-4 text-sm text-gray-700"><span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">12</span></td>
-                                <td class="px-6 py-4 text-sm"><span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Activa</span></td>
-                                <td class="px-6 py-4 text-sm flex gap-2">
-                                    <button onclick="editarRuta(1)" class="text-blue-600 hover:text-blue-800 font-semibold"><i class="fas fa-edit"></i></button>
-                                    <button onclick="eliminarRuta(1)" class="text-red-600 hover:text-red-800 font-semibold"><i class="fas fa-trash"></i></button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p class="text-sm text-blue-800"><i class="fas fa-info-circle mr-2"></i>Las rutas se pueden crear y gestionar desde aquí. Actualmente se muestran rutas de prueba.</p>
-            </div>
-        </div>
-    `;
-}
-
-function renderRutasActivas() {
-    return `
-        <div class="space-y-4">
-            ${rutasData.activas.map((ruta, index) => `
-                <div class="bg-gradient-to-br from-green-50 via-white to-green-50 rounded-lg p-6 border-2 border-green-200 hover:border-green-400 hover:shadow-xl transition-all">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="flex items-start gap-4">
-                            <div class="relative">
-                                <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center text-white shadow-md">
-                                    <i class="fas fa-road text-lg"></i>
-                                </div>
-                                <div class="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-bold text-gray-900">${ruta.nombre}</h3>
-                                <p class="text-sm text-gray-600 mt-1">Estado: <span class="font-semibold text-green-600">Activa</span></p>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            <div class="inline-flex items-center gap-2 bg-green-100 px-4 py-2 rounded-full border border-green-300">
-                                <span class="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
-                                <span class="text-sm font-bold text-green-700">En Servicio</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-4 gap-3 mb-4">
-                        <div class="bg-white rounded-lg p-3 border border-green-200 text-center hover:bg-green-50 transition-colors">
-                            <p class="text-xs font-semibold text-gray-600 uppercase">Ruta #</p>
-                            <p class="text-2xl font-bold text-gray-900 mt-1">${ruta.id}</p>
-                        </div>
-                        <div class="bg-white rounded-lg p-3 border border-green-200 text-center hover:bg-green-50 transition-colors">
-                            <p class="text-xs font-semibold text-gray-600 uppercase">Vehículo</p>
-                            <p class="text-sm font-bold text-gray-900 mt-1">${ruta.vehiculo}</p>
-                        </div>
-                        <div class="bg-white rounded-lg p-3 border border-green-200 text-center hover:bg-green-50 transition-colors">
-                            <p class="text-xs font-semibold text-gray-600 uppercase">Puntos</p>
-                            <p class="text-2xl font-bold text-green-600 mt-1">${ruta.puntos}</p>
-                        </div>
-                        <div class="bg-white rounded-lg p-3 border border-green-200 text-center hover:bg-green-50 transition-colors">
-                            <p class="text-xs font-semibold text-gray-600 uppercase">Progreso</p>
-                            <p class="text-2xl font-bold text-blue-600 mt-1">${Math.round((index + 1) * 25)}%</p>
-                        </div>
-                    </div>
-
-                    <!-- Barra de progreso -->
-                    <div class="mb-4">
-                        <div class="flex justify-between items-center mb-2">
-                            <p class="text-xs font-semibold text-gray-600">Avance de la ruta</p>
-                            <p class="text-xs font-bold text-gray-900">${Math.round((index + 1) * 25)}% completado</p>
-                        </div>
-                        <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div class="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full transition-all" style="width: ${(index + 1) * 25}%"></div>
-                        </div>
-                    </div>
-                    
-                    <div class="flex gap-2">
-                        <button onclick="verDetallesRutaActiva(${ruta.id})" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
-                            <i class="fas fa-map-marked-alt"></i>Ver en Mapa
-                        </button>
-                        <button onclick="pausarRuta(${ruta.id})" class="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
-                            <i class="fas fa-pause-circle"></i>Pausar
-                        </button>
-                        <button onclick="detenerRuta(${ruta.id})" class="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
-                            <i class="fas fa-stop-circle"></i>Detener
-                        </button>
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `;
-}
-
-// Funciones del mapa de rutas
-function iniciarDibujoRuta(event) {
-    if (event.button !== 0) return; // Solo botón izquierdo
-    isDrawingRuta = true;
-    agregarPuntoRuta(event);
-}
-
-function dibujarRuta(event) {
-    if (!isDrawingRuta) return;
-    
-    const svg = document.getElementById('svgRuta');
-    if (!svg) return;
-    
-    const rect = svg.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
-    
-    // Actualizar vista previa de línea
-    let points = pointsRuta.map(p => `${(p.x / 100) * rect.width},${(p.y / 100) * rect.height}`).join(' ');
-    if (points) points += ` ${event.clientX - rect.left},${event.clientY - rect.top}`;
-    document.getElementById('rutaPolyline').setAttribute('points', points);
-}
-
-function terminarDibujoRuta() {
-    isDrawingRuta = false;
-}
-
-function agregarPuntoRuta(event) {
-    const rect = document.getElementById('mapaRuta').getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
-    
-    pointsRuta.push({ x, y });
-    renderRutas();
-}
-
-function desahcerUltimoPuntoRuta() {
-    if (pointsRuta.length > 0) {
-        pointsRuta.pop();
-        renderRutas();
-    }
-}
-
-function limpiarDibujoRuta() {
-    pointsRuta = [];
-    renderRutas();
-}
-
-function agregarEncargadoRuta() {
-    const lista = document.getElementById('encargadosList');
-    const id = 'encargado_' + Date.now();
-    
-    const html = `
-        <div class="flex gap-2" id="${id}">
-            <input type="text" placeholder="Nombre del encargado" class="flex-1 px-2 py-2 border border-gray-300 rounded text-sm">
-            <button onclick="document.getElementById('${id}').remove()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded text-sm">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    `;
-    lista.insertAdjacentHTML('beforeend', html);
-}
-
-function guardarRuta() {
-    if (pointsRuta.length < 2) {
-        alert('Debes agregar al menos 2 puntos a la ruta');
-        return;
-    }
-    
-    const numero = document.getElementById('numeroRuta').value;
-    const vehiculo = document.getElementById('vehiculoRuta').value;
-    const matricula = document.getElementById('matriculaRuta').value;
-    
-    if (!numero || !vehiculo || !matricula) {
-        alert('Completa todos los campos requeridos');
-        return;
-    }
-    
-    const nuevaRuta = {
-        id: rutasData.activas.length + 101,
-        nombre: `Ruta ${numero}`,
-        vehiculo: vehiculo,
-        estado: 'activa',
-        puntos: pointsRuta.length
-    };
-    
-    rutasData.activas.push(nuevaRuta);
-    pointsRuta = [];
-    vistaRutasActual = 'activas';
-    renderRutas();
-    alert('¡Ruta guardada exitosamente!');
-}
-
-function aceptarRutaSugerida(id) {
-    const ruta = rutasData.sugeridas.find(r => r.id === id);
-    if (ruta) {
-        rutasData.activas.push({
-            id: rutasData.activas.length + 101,
-            nombre: ruta.nombre,
-            vehiculo: 'Por asignar',
-            estado: 'activa',
-            puntos: ruta.puntos
-        });
-        rutasData.sugeridas = rutasData.sugeridas.filter(r => r.id !== id);
-        vistaRutasActual = 'activas';
-        renderRutas();
-        alert('Ruta aceptada y activada');
-    }
-}
-
-function rechazarRutaSugerida(id) {
-    rutasData.sugeridas = rutasData.sugeridas.filter(r => r.id !== id);
-    renderRutas();
-    alert('Ruta rechazada');
-}
-
-function verDetallesRuta(id) {
-    alert(`Ver detalles de ruta sugerida #${id}`);
-}
-
-function verDetallesRutaActiva(id) {
-    alert(`Ver detalles de ruta activa #${id}`);
-}
-
-function pausarRuta(id) {
-    alert(`Ruta #${id} pausada`);
-}
-
-function detenerRuta(id) {
-    alert(`Ruta #${id} detenida`);
-}
 
 // ========== CONFIGURACIÓN ==========
 
