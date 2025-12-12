@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 from datetime import datetime
@@ -111,6 +111,12 @@ def login():
     
     return render_template('inicio_sesion.html')
 
+
+@app.route('/registro', methods=['GET'])
+def registro():
+    """Página de registro de usuarios."""
+    return render_template('registro.html')
+
 @app.route('/logout')
 def logout():
     session.clear()
@@ -121,6 +127,12 @@ def logout():
 def index():
     """Página de inicio principal"""
     return render_template('index.html')
+
+
+@app.route('/assets/<path:filename>')
+def assets_static(filename):
+    """Servir archivos de la carpeta assets (css/js)."""
+    return send_from_directory('assets', filename)
 
 @app.route('/panel-usuario')
 def panel_usuario():

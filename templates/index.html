@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="../assets/css/styles.css">
+    <link rel="stylesheet" href="/assets/css/styles.css">
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -61,10 +61,10 @@
                 <div class="scroll-item"><img src="/static/images/bolsa_basura.png" alt="Bolsa de Basura"></div>
                 <div class="scroll-item"><img src="/static/images/bosque.png" alt="Bosque"></div>
                 <div class="scroll-item"><img src="/static/images/camion.png" alt="Camión"></div>
-                <div class="scroll-item"><img src="/static/images/arbol.png" alt="Árbol"></div>
-                <div class="scroll-item"><img src="/static/images/bolsa_basura.png" alt="Bolsa de Basura"></div>
-                <div class="scroll-item"><img src="/static/images/bosque.png" alt="Bosque"></div>
-                <div class="scroll-item"><img src="/static/images/camion.png" alt="Camión"></div>
+                <div class="scroll-item"><img src="{{ url_for('static', filename='images/arbol.png') }}" alt="Árbol"></div>
+                <div class="scroll-item"><img src="{{ url_for('static', filename='images/bolsa_basura.png') }}" alt="Bolsa de Basura"></div>
+                <div class="scroll-item"><img src="{{ url_for('static', filename='images/bosque.png') }}" alt="Bosque"></div>
+                <div class="scroll-item"><img src="{{ url_for('static', filename='images/camion.png') }}" alt="Camión"></div>
             </div>
             <div class="scroll-row scroll-row-2">
                 <div class="scroll-item"><img src="/static/images/casa.png" alt="Casa"></div>
@@ -217,8 +217,8 @@
 
     <!-- Leaflet JavaScript -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
+
     <!-- Custom JavaScript -->
-    <script src="../assets/js/app.js"></script>
+    <script src="/assets/js/app.js"></script>
 </body>
 </html>
