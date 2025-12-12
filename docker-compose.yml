@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  ecologics:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecologics-app
+    ports:
+      - "8080:8080"
+    environment:
+      # Variables de Supabase - Actualiza con tus credenciales
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      
+      # Variables de Mapbox - Actualiza con tu token
+      MAPBOX_TOKEN: ${MAPBOX_TOKEN}
+      
+      # Configuración Flask
+      FLASK_APP: app.py
+      FLASK_ENV: production
+    
+    volumes:
+      # Persiste la BD SQLite local
+      - ./ecologics.db:/app/ecologics.db
+      # Monta el código fuente para desarrollo (opcional, comenta para producción)
+      # - .:/app
+    
+    restart: unless-stopped
+    
+    # Healthcheck opcional
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
