@@ -476,7 +476,7 @@ if __name__ == '__main__':
     
     print(f"\n🚀 Iniciando EcoRecolección en puerto {port}...")
     print(f"📍 Accede a: http://localhost:{port}/panel-recolector")
-    print(f"📍 Usuario: http://localhost:{port}/panel-usuario-mejorado")
+    print(f"📍 Usuario: http://localhost:{port}/panel-usuario")
     print(f"⚠️  Presiona Ctrl+C para detener la aplicación\n")
     
     app.run(debug=True, host='0.0.0.0', port=port)
