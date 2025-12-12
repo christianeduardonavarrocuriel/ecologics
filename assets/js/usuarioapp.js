@@ -8,12 +8,47 @@ let notifications = [
 let userProfile = null;
 let currentMap = null;
 let currentMarker = null;
+let mapboxToken = null;
 
 // Inicialización
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // Cargar token de Mapbox desde backend
+    await loadMapboxToken();
+    // Cargar perfil y vista inicial
     loadUserProfile();
     changeView('inicio');
 });
+
+// Cargar token Mapbox y configurar capa base
+async function loadMapboxToken() {
+    try {
+        const res = await fetch('/api/config/mapbox-token');
+        if (res.ok) {
+            const data = await res.json();
+            mapboxToken = data.token || null;
+            console.log('Token Mapbox cargado:', !!mapboxToken);
+        }
+    } catch (e) {
+        console.warn('No se pudo cargar el token Mapbox:', e);
+    }
+}
+
+function addBaseTileLayer(map) {
+    if (mapboxToken) {
+        L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=' + mapboxToken, {
+            id: 'mapbox/streets-v12',
+            tileSize: 512,
+            zoomOffset: -1,
+            attribution: '© Mapbox © OpenStreetMap',
+            maxZoom: 18
+        }).addTo(map);
+    } else {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18
+        }).addTo(map);
+    }
+}
 
 // Cargar perfil del usuario
 async function loadUserProfile() {
@@ -319,11 +354,8 @@ function initSolicitarForm() {
                 });
                 console.log('Mapa creado centrado en ubicación', currentMap);
                 
-                // Agregar capa de tiles
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors',
-                    maxZoom: 18
-                }).addTo(currentMap);
+                // Agregar capa base (Mapbox si hay token, OSM si no)
+                addBaseTileLayer(currentMap);
                 
                 // Agregar marcador draggable temporal (centro de Pachuca, Hidalgo)
                 currentMarker = L.marker([20.1011, -98.7591], {
@@ -875,11 +907,8 @@ function initSeguimiento() {
                     maxBoundsViscosity: 1.0
                 });
                 
-                // Agregar capa de tiles
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors',
-                    maxZoom: 18
-                }).addTo(currentMap);
+                // Agregar capa base (Mapbox si hay token, OSM si no)
+                addBaseTileLayer(currentMap);
                 
                 // Marcador del usuario (tu ubicación) - SE OBTENDRÁ POR GPS
                 const userIcon = L.divIcon({
