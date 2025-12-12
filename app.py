@@ -56,6 +56,26 @@ def get_supabase():
         raise RuntimeError('Supabase no está configurado. Añade SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY al entorno.')
     return supabase_client
 
+# ==================== SQLITE FALLBACK ====================
+import sqlite3
+
+DB_PATH = os.path.join(os.path.dirname(__file__), 'ecologics.db')
+
+def init_sqlite_if_needed():
+    if not os.path.exists(DB_PATH):
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            with open(os.path.join(os.path.dirname(__file__), 'base_de_datos.sql'), 'r', encoding='utf-8') as f:
+                conn.executescript(f.read())
+        finally:
+            conn.close()
+
+def get_db_connection():
+    init_sqlite_if_needed()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 
 def split_full_name(full_name: str):
     parts = (full_name or '').strip().split()
@@ -576,6 +596,25 @@ def aceptar_solicitud(id_solicitud):
             
             # Actualizar estado de solicitud a 'en-proceso'
             supabase_client.table('solicitudes_recoleccion').update({'estado': 'en-proceso'}).eq('id_solicitud', id_solicitud).execute()
+
+            # Registrar actividad como "en-proceso" para poder visualizar pendientes/no entregadas
+            try:
+                sol_resp = supabase_client.table('solicitudes_recoleccion').select('*').eq('id_solicitud', id_solicitud).execute()
+                if sol_resp.data:
+                    sol = sol_resp.data[0]
+                    actividad_data = {
+                        'id_solicitud': id_solicitud,
+                        'id_usuario': sol.get('id_usuario'),
+                        'id_recolector': session['user_id'],
+                        'kilos_recolectados': sol.get('kilos', 0),
+                        'tipo_residuo': sol.get('tipo_residuo', ''),
+                        'estado_recoleccion': 'en-proceso',
+                        'tipo_evidencia': 'asignada',
+                        'fecha_inicio': sol.get('fecha_solicitud') or datetime.now().isoformat(),
+                    }
+                    supabase_client.table('actividad_recolecciones').insert(actividad_data).execute()
+            except Exception as e:
+                print(f'⚠️ No se pudo registrar actividad en-proceso: {e}')
             
             return jsonify({'success': True, 'mensaje': 'Solicitud aceptada correctamente'})
         except Exception as e:
@@ -717,8 +756,8 @@ def finalizar_recoleccion():
                     
                     print(f'ℹ️ Recolección #{id_solicitud} marcada para reintentar (tipo: {tipo_evidencia})')
                 
-                # Registrar la actividad en la tabla de historial
-                if nuevo_estado == 'completada':
+                # Registrar la actividad en la tabla de historial para cualquier estado
+                if True:
                     solicitud_data = supabase_client.table('solicitudes_recoleccion').select('*').eq('id_solicitud', id_solicitud).execute()
                     if solicitud_data.data:
                         sol = solicitud_data.data[0]
@@ -764,7 +803,7 @@ def finalizar_recoleccion():
                             'id_recolector': session['user_id'],
                             'kilos_recolectados': sol.get('kilos', 0),
                             'tipo_residuo': sol.get('tipo_residuo', ''),
-                            'estado_recoleccion': 'completada',
+                            'estado_recoleccion': nuevo_estado,
                             'tipo_evidencia': tipo_evidencia,
                             'notas': notas,
                             'lat_final': lat_final,
@@ -775,7 +814,7 @@ def finalizar_recoleccion():
                         }
                         
                         supabase_client.table('actividad_recolecciones').insert(actividad_data).execute()
-                        print(f'📊 Actividad registrada para solicitud #{id_solicitud}')
+                        print(f'📊 Actividad registrada para solicitud #{id_solicitud} con estado {nuevo_estado}')
                 
                 print(f'✅ Recolección #{id_solicitud} finalizada como {nuevo_estado}')
                 return jsonify({'success': True, 'mensaje': 'Recolección finalizada correctamente'})
@@ -1181,6 +1220,46 @@ def get_estadisticas_recolector():
         'total_kilos': round(total_kilos, 2),
         'actividad': [dict(row) for row in actividad]
     })
+
+# Listar actividad del recolector por estado
+@app.route('/api/recolector/actividad')
+def listar_actividad_recolector():
+    if 'user_id' not in session:
+        session['user_id'] = 2
+
+    estado = request.args.get('estado', 'todas')  # 'todas', 'pendiente-revision', 'en-proceso', 'completada', etc.
+
+    # Supabase
+    if supabase_client:
+        try:
+            qb = supabase_client.table('actividad_recolecciones').select('*').eq('id_recolector', session['user_id'])
+            if estado and estado != 'todas':
+                qb = qb.eq('estado_recoleccion', estado)
+            resp = qb.order('fecha_finalizacion', desc=True).limit(50).execute()
+            return jsonify(resp.data or [])
+        except Exception as e:
+            print(f'Error listando actividad del recolector en Supabase: {e}')
+
+    # SQLite fallback
+    conn = get_db_connection()
+    try:
+        if estado and estado != 'todas':
+            filas = conn.execute('''
+                SELECT * FROM actividad_recolecciones
+                WHERE id_recolector = ? AND estado_recoleccion = ?
+                ORDER BY COALESCE(fecha_finalizacion, fecha_inicio) DESC
+                LIMIT 50
+            ''', (session['user_id'], estado)).fetchall()
+        else:
+            filas = conn.execute('''
+                SELECT * FROM actividad_recolecciones
+                WHERE id_recolector = ?
+                ORDER BY COALESCE(fecha_finalizacion, fecha_inicio) DESC
+                LIMIT 50
+            ''', (session['user_id'],)).fetchall()
+        return jsonify([dict(r) for r in filas])
+    finally:
+        conn.close()
 
 # Enviar queja/soporte
 @app.route('/api/usuario/quejas', methods=['POST'])

@@ -479,7 +479,7 @@
         // Vista Mis Recolecciones
         async function loadMisRecolecciones() {
             try {
-                const response = await fetch(`${API_BASE}/recolector/mis-recolecciones`);
+            const response = await fetch(`${API_BASE}/recolector/mis-solicitudes`);
                 const recolecciones = await response.json();
                 
                 const html = `
@@ -696,7 +696,7 @@
                 if (result.success) {
                     alert('✅ Solicitud aceptada correctamente');
                     // Recargar la lista de solicitudes
-                    loadSolicitudesDisponibles();
+                    loadSolicitudes();
                 } else {
                     alert('❌ Error: ' + (result.error || 'No se pudo aceptar la solicitud'));
                 }
