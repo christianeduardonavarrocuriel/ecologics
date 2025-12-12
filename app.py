@@ -1537,11 +1537,37 @@ def admin_get_quejas():
         return jsonify({'success': False, 'error': 'Supabase no configurado'}), 500
 
     try:
+        # Seleccionar columnas de forma amplia para evitar fallos por nombres diferentes
         response = supabase_client.table('quejas_soporte') \
-            .select('id, asunto, detalle, fecha_creacion, estado, id_usuario, usuarios(nombre, apellidos, correo)') \
+            .select('*, usuarios(nombre, apellidos, correo)') \
             .order('fecha_creacion', desc=True) \
             .execute()
-        return jsonify(response.data or [])
+
+        rows = response.data or []
+        # Mapear a formato esperado por frontend
+        result = []
+        for q in rows:
+            usuario_nombre = None
+            if isinstance(q.get('usuarios'), dict):
+                u = q['usuarios']
+                nombre = (u.get('nombre') or '').strip()
+                apellidos = (u.get('apellidos') or '').strip()
+                correo = (u.get('correo') or '').strip()
+                usuario_nombre = (f"{nombre} {apellidos}" if (nombre or apellidos) else correo) or None
+
+            result.append({
+                'id': q.get('id') or q.get('id_queja') or q.get('id_soporte') or q.get('id_reporte') or q.get('id_solicitud') or q.get('id_usuario'),
+                'usuario': usuario_nombre or f"Usuario #{q.get('id_usuario')}",
+                'motivo': q.get('motivo') or q.get('asunto') or 'Sin motivo',
+                'fecha': q.get('fecha_creacion') or q.get('fecha') or q.get('created_at') or '',
+                'prioridad': q.get('prioridad') or 'baja',
+                'estado': q.get('estado') or 'pendiente',
+                'descripcion': q.get('descripcion') or q.get('detalle') or '',
+                'solicitud': q.get('id_solicitud') or None,
+                'recolector': q.get('id_recolector') or None
+            })
+
+        return jsonify(result)
     except Exception as exc:
         print(f'Error consultando quejas: {exc}')
         return jsonify([])
@@ -1659,6 +1685,54 @@ def admin_get_rutas():
     except Exception as exc:
         print(f'Tabla rutas_generales no disponible: {exc}')
         return jsonify([])
+
+# Actualizar estado/prioridad de una queja
+@app.route('/api/admin/quejas/<int:id_queja>/estado', methods=['POST'])
+def admin_actualizar_estado_queja(id_queja):
+    if not supabase_client:
+        return jsonify({'success': False, 'error': 'Supabase no configurado'}), 500
+
+    data = request.get_json() or {}
+    nuevo_estado = data.get('estado')
+    nueva_prioridad = data.get('prioridad')
+
+    if not nuevo_estado:
+        return jsonify({'success': False, 'error': 'estado requerido'}), 400
+
+    try:
+        print(f"🛠️ Actualizando queja #{id_queja} -> estado={nuevo_estado}, prioridad={nueva_prioridad}")
+        update_data = {'estado': nuevo_estado}
+        if nueva_prioridad:
+            update_data['prioridad'] = nueva_prioridad
+
+        # Intentar actualizar por 'id' y si no existe, por 'id_queja'
+        try:
+            resp = supabase_client.table('quejas_soporte').update(update_data).eq('id', id_queja).execute()
+            updated = resp.data
+            if not updated:
+                # Reintentar con columna alternativa
+                resp = supabase_client.table('quejas_soporte').update(update_data).eq('id_queja', id_queja).execute()
+                updated = resp.data
+        except Exception:
+            resp = supabase_client.table('quejas_soporte').update(update_data).eq('id_queja', id_queja).execute()
+            updated = resp.data
+
+        # Obtener fila actualizada para confirmar
+        fila = None
+        try:
+            sel = supabase_client.table('quejas_soporte').select('*').eq('id', id_queja).limit(1).execute()
+            fila = (sel.data or [None])[0]
+            if not fila:
+                sel = supabase_client.table('quejas_soporte').select('*').eq('id_queja', id_queja).limit(1).execute()
+                fila = (sel.data or [None])[0]
+        except Exception:
+            fila = None
+
+        print(f"✅ Actualizada: {bool(updated)} | Estado actual: {fila.get('estado') if isinstance(fila, dict) else 'desconocido'}")
+        return jsonify({'success': True, 'updated': bool(updated), 'estado': fila.get('estado') if isinstance(fila, dict) else nuevo_estado})
+    except Exception as exc:
+        print(f'Error actualizando estado de queja: {exc}')
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
 if __name__ == '__main__':
     import sys

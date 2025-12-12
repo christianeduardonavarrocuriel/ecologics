@@ -1873,14 +1873,39 @@ function asignarSolucion(tipo) {
     `;
     document.body.appendChild(notification.firstElementChild);
 
-    // Actualizar estado en los datos
+    // Determinar nuevo estado
+    let nuevoEstado = quejaSeleccionada.estado;
     if (tipo === 'marcar-resuelta') {
-        quejaSeleccionada.estado = 'resuelta';
+        nuevoEstado = 'resuelta';
     } else if (tipo === 'en-revision') {
-        quejaSeleccionada.estado = 'en-revision';
+        nuevoEstado = 'en-revision';
     } else if (tipo === 'cerrar') {
-        quejaSeleccionada.estado = 'cerrada';
+        nuevoEstado = 'cerrada';
     }
+
+    // Persistir en backend
+    (async () => {
+        try {
+            const res = await fetch(`/api/admin/quejas/${quejaSeleccionada.id}/estado`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ estado: nuevoEstado, prioridad: quejaSeleccionada.prioridad || 'baja' })
+            });
+            const resp = await res.json();
+            if (resp && resp.success) {
+                const estadoConfirmado = resp.estado || nuevoEstado;
+                quejaSeleccionada.estado = estadoConfirmado;
+                const idx = quejas.findIndex(q => q.id === quejaSeleccionada.id);
+                if (idx !== -1) quejas[idx].estado = estadoConfirmado;
+                // Refrescar tabla de inmediato
+                renderReportes();
+            } else {
+                console.warn('No se pudo actualizar la queja en el backend:', resp);
+            }
+        } catch (e) {
+            console.error('Error persistiendo estado de queja:', e);
+        }
+    })();
 
     // Cerrar modal
     setTimeout(() => {
