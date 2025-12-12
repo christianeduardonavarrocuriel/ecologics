@@ -436,15 +436,35 @@ def crear_solicitud():
     if supabase_client:
         print(f"   🔄 Intentando guardar en Supabase...")
         try:
+            # Unificar estructura de entrada: soportar tanto plano como anidado en "direccion"
+            direccion = data.get('direccion') or {}
+
+            calle = (direccion.get('calle')
+                     if isinstance(direccion, dict) else data.get('calle'))
+            colonia = (direccion.get('colonia')
+                       if isinstance(direccion, dict) else data.get('colonia'))
+            num_ext_val = (direccion.get('num_ext')
+                           if isinstance(direccion, dict) else data.get('numero_exterior'))
+            cp_val = (direccion.get('cp')
+                      if isinstance(direccion, dict) else data.get('codigo_postal'))
+            referencias = (direccion.get('referencias')
+                           if isinstance(direccion, dict) else data.get('referencias'))
+
+            # Normalizar enteros opcionales
+            def to_int_or_none(v):
+                if v is None:
+                    return None
+                s = str(v).strip()
+                return int(s) if s.isdigit() else None
+
             # Payload para Supabase - mapear nombres de columnas (con espacios)
-            # Convertir strings vacíos a None para campos numéricos
             payload = {
                 'id_usuario': session['user_id'],
-                'calle': data.get('calle', '') or None,
-                'numero exterior': int(data.get('numero_exterior', '') or 0) if data.get('numero_exterior', '').strip() else None,
-                'colonia': data.get('colonia', '') or None,
-                'codigo postal': int(data.get('codigo_postal', '') or 0) if data.get('codigo_postal', '').strip() else None,
-                'referencias': data.get('referencias', '') or None,
+                'calle': (calle or None),
+                'numero exterior': to_int_or_none(num_ext_val),
+                'colonia': (colonia or None),
+                'codigo postal': to_int_or_none(cp_val),
+                'referencias': (referencias or None),
                 'kilos': data.get('kilos', 0),
                 'tipo_residuo': data.get('tipoResiduo', ''),
                 'info_extra': data.get('informacion', '') or None,

@@ -654,12 +654,21 @@ function initSolicitarForm() {
                 
                 if (response.ok) {
                     const result = await response.json();
-                    alert('Solicitud enviada exitosamente. ID de solicitud: #' + result.id_solicitud);
+                    try { alert('Solicitud enviada exitosamente. ID de solicitud: #' + result.id_solicitud); } catch (_) {}
+                    // Limpiar formulario y UI
                     form.reset();
                     if (currentMarker) {
                         currentMarker.setLatLng([20.082, -98.363]);
                     }
-                    document.getElementById('ubicacionMsg').classList.add('hidden');
+                    const ubicacionMsg = document.getElementById('ubicacionMsg');
+                    if (ubicacionMsg) ubicacionMsg.classList.add('hidden');
+
+                    // Navegar a "Mis Solicitudes"
+                    if (typeof changeView === 'function') {
+                        changeView('mis-solicitudes');
+                        // Opcional: desplazarse al inicio
+                        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) {}
+                    }
                 } else {
                     alert('Error al enviar la solicitud');
                 }
@@ -938,6 +947,21 @@ function verDetalleSolicitud(sol) {
     const fecha = new Date(sol.fecha_solicitud || sol.fecha).toLocaleDateString('es-MX');
     const id = sol.id_solicitud || sol.id;
     const tipo = sol.tipo_residuo || sol.tipoResiduo;
+    // Construir dirección desde diferentes posibles esquemas de datos (SQLite vs Supabase)
+    const calle = sol.calle || '';
+    const numExt = (sol['numero exterior'] !== undefined ? sol['numero exterior'] : (sol.numero_exterior !== undefined ? sol.numero_exterior : ''));
+    const colonia = sol.colonia || '';
+    const cp = (sol['codigo postal'] !== undefined ? sol['codigo postal'] : (sol.codigo_postal !== undefined ? sol.codigo_postal : ''));
+    const direccionText = (sol.direccion && sol.direccion.trim().length > 0)
+        ? sol.direccion
+        : [
+            calle || null,
+            (numExt !== '' && numExt !== null && numExt !== undefined) ? `#${numExt}` : null,
+            colonia || null,
+            (cp !== '' && cp !== null && cp !== undefined) ? `CP ${cp}` : null
+          ].filter(Boolean).join(', ');
+    const referencias = sol.referencias || sol.info_extra || '';
+    const coords = (sol.lat && sol.lng) ? `${parseFloat(sol.lat).toFixed(6)}, ${parseFloat(sol.lng).toFixed(6)}` : null;
     
     title.textContent = `Detalle de Solicitud #${id}`;
     body.innerHTML = `
@@ -962,12 +986,18 @@ function verDetalleSolicitud(sol) {
             </div>
             <div>
                 <p class="text-sm text-gray-500 mb-1">Dirección</p>
-                <p class="text-gray-700">${sol.direccion}</p>
+                <p class="text-gray-700">${direccionText || '—'}</p>
             </div>
-            ${sol.info_extra ? `
+            ${referencias ? `
             <div>
                 <p class="text-sm text-gray-500 mb-1">Información Adicional</p>
-                <p class="text-gray-700">${sol.info_extra}</p>
+                <p class="text-gray-700">${referencias}</p>
+            </div>
+            ` : ''}
+            ${coords ? `
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Ubicación</p>
+                <p class="text-gray-700">${coords}</p>
             </div>
             ` : ''}
         </div>
