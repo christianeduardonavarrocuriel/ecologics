@@ -3,11 +3,40 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 from datetime import datetime
 import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = 'tu_clave_secreta_super_segura_12345'
 
 DATABASE = 'ecologics.db'
+MAPBOX_TOKEN = os.getenv('MAPBOX_TOKEN', 'pk.eyJ1Ijoic3dldGllYWxpZW4iLCJhIjoiY21qMjN5dGZ6MGVqZTNkcHh5cjJrY3BhcCJ9.Tx1s_wXzp4O4kJmoJYgXhw')
+
+# ==================== RUTAS DE LA APLICACIÓN ====================
+# GET  /                           -> index.html (Página de inicio)
+# GET  /login                      -> inicio_sesion.html (Iniciar sesión)
+# POST /login                      -> JSON autenticación
+# GET  /registro                   -> registro.html (Registro de usuarios)
+# POST /registro                   -> JSON registro
+# GET  /logout                     -> Cerrar sesión
+# GET  /panel-usuario              -> indexusuario.html (Panel del usuario)
+# GET  /panel-admin                -> admin.html (Panel de administrador)
+# GET  /panel-recolector           -> panel_recolector.html (Panel del recolector)
+# GET  /panel-usuario-mejorado     -> usuario_mejorado.html (Panel mejorado del usuario)
+# GET  /test-mapa                  -> test_mapa.html (Página de test)
+# GET  /api/config/mapbox-token    -> JSON token Mapbox
+# GET  /api/usuario/perfil         -> JSON perfil del usuario
+# GET  /api/usuario/solicitudes    -> JSON listado de solicitudes
+# POST /api/usuario/solicitudes    -> JSON crear solicitud
+# GET  /api/usuario/estadisticas   -> JSON estadísticas
+# POST /api/usuario/quejas         -> JSON reportar queja
+# POST /api/usuario/rutas-sugeridas -> JSON rutas sugeridas
+# GET  /api/usuario/rutas-sugeridas -> JSON obtener rutas sugeridas
+# GET  /api/usuario/seguimiento/<id_solicitud> -> JSON seguimiento en tiempo real
+# POST /api/ubicacion              -> JSON enviar ubicación
+# ==================== FIN DE RUTAS ====================
 
 # ==================== FUNCIONES DE BASE DE DATOS ====================
 def get_db_connection():
@@ -80,7 +109,7 @@ def login():
         
         return jsonify({'success': False, 'message': 'Usuario o contraseña incorrectos'}), 401
     
-    return render_template('login.html')
+    return render_template('inicio_sesion.html')
 
 @app.route('/logout')
 def logout():
@@ -90,14 +119,8 @@ def logout():
 # ==================== RUTAS PRINCIPALES ====================
 @app.route('/')
 def index():
-    # Modo demo: crear sesión automática si no existe
-    if 'user_id' not in session:
-        session['user_id'] = 1
-        session['username'] = 'juan'
-        session['rol'] = 'usuario'
-        session['nombre'] = 'Juan'
-    
-    return redirect(url_for('panel_usuario'))
+    """Página de inicio principal"""
+    return render_template('index.html')
 
 @app.route('/panel-usuario')
 def panel_usuario():
@@ -121,11 +144,38 @@ def panel_admin():
 
     return render_template('admin.html')
 
+@app.route('/panel-recolector')
+def panel_recolector():
+    # Sesión demo para el panel del recolector
+    if 'user_id' not in session:
+        session['user_id'] = 2
+        session['username'] = 'carlos'
+        session['rol'] = 'recolector'
+        session['nombre'] = 'Carlos'
+    
+    return render_template('panel_recolector.html')
+
+@app.route('/panel-usuario-mejorado')
+def panel_usuario_mejorado():
+    # Sesión demo para el panel mejorado del usuario
+    if 'user_id' not in session:
+        session['user_id'] = 1
+        session['username'] = 'juan'
+        session['rol'] = 'usuario'
+        session['nombre'] = 'Juan'
+    
+    return render_template('usuario_mejorado.html')
+
 @app.route('/test-mapa')
 def test_mapa():
     return render_template('test_mapa.html')
 
 # ==================== API ENDPOINTS ====================
+
+# Obtener API Key de Mapbox
+@app.route('/api/config/mapbox-token')
+def get_mapbox_token():
+    return jsonify({'token': MAPBOX_TOKEN})
 
 # Obtener datos del usuario
 @app.route('/api/usuario/perfil')
@@ -411,5 +461,22 @@ def get_rutas_sugeridas():
 
 # ==================== INICIAR APLICACIÓN ====================
 if __name__ == '__main__':
+    import sys
     init_db()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    # Obtener puerto de argumentos o variables de entorno, default 8080
+    port = 8080
+    if len(sys.argv) > 1:
+        try:
+            port = int(sys.argv[1])
+        except ValueError:
+            port = 8080
+    else:
+        port = int(os.getenv('PORT', 8080))
+    
+    print(f"\n🚀 Iniciando EcoRecolección en puerto {port}...")
+    print(f"📍 Accede a: http://localhost:{port}/panel-recolector")
+    print(f"📍 Usuario: http://localhost:{port}/panel-usuario-mejorado")
+    print(f"⚠️  Presiona Ctrl+C para detener la aplicación\n")
+    
+    app.run(debug=True, host='0.0.0.0', port=port)

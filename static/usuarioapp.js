@@ -309,7 +309,7 @@ function initSolicitarForm() {
         
         if (mapElement && !currentMap) {
             try {
-                // Crear el mapa centrado en Hidalgo, México
+                // Crear el mapa centrado en la ubicación actual
                 // Coordenadas centrales de Hidalgo: 20.0911, -98.7624
                 currentMap = L.map('mapaSolicitud', {
                     center: [20.0911, -98.7624],
@@ -317,7 +317,7 @@ function initSolicitarForm() {
                     minZoom: 3,
                     maxZoom: 18
                 });
-                console.log('Mapa creado centrado en Hidalgo, México', currentMap);
+                console.log('Mapa creado centrado en ubicación', currentMap);
                 
                 // Agregar capa de tiles
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
