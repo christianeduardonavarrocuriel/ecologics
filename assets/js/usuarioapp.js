@@ -978,44 +978,104 @@ function initSeguimiento() {
                     );
                 }
                 
-                // Marcador del recolector en Hidalgo (zona norte de Pachuca) - DRAGGABLE
+                // Marcador del recolector - CARGAR TODOS LOS RECOLECTORES CON UBICACIÓN REAL
                 const recolectorIcon = L.divIcon({
                     className: 'custom-div-icon',
-                    html: `<div style="background-color: #10B981; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.2); cursor: move;">
-                            <svg style="width: 24px; height: 24px; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    html: `<div style="background-color: #10B981; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-center; box-shadow: 0 4px 6px rgba(0,0,0,0.2); position: relative;">
+                            <svg style="width: 24px; height: 24px; color: white;" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
                             </svg>
+                            <div style="position: absolute; width: 50px; height: 50px; border: 2px solid #10B981; border-radius: 50%; opacity: 0.2; animation: pulse 2s infinite;" class="animate-ping"></div>
                           </div>`,
                     iconSize: [40, 40],
                     iconAnchor: [20, 20]
                 });
                 
-                // Posición inicial del recolector (cercano a Tulancingo)
-                const recolectorMarker = L.marker([20.12, -98.34], {
-                    icon: recolectorIcon,
-                    draggable: true,
-                    title: 'Arrastra para mover el recolector'
-                }).addTo(currentMap);
-                recolectorMarker.bindPopup("<b>Recolector Carlos</b><br>Unidad 42 (Tulancingo)<br><small>Arrastra para simular movimiento</small>");
-                
-                // Línea de ruta entre usuario y recolector
-                const routeLine = L.polyline([
-                    [20.12, -98.34],
-                    [20.082, -98.363]
-                ], {
-                    color: '#3B82F6',
-                    weight: 3,
-                    opacity: 0.6,
-                    dashArray: '10, 10'
-                }).addTo(currentMap);
-                
-                // Ajustar vista para mostrar ambos marcadores
-                const bounds = L.latLngBounds([
-                    [20.082, -98.363],
-                    [20.12, -98.34]
-                ]);
-                currentMap.fitBounds(bounds, {padding: [80, 80]});
+                // Cargar todos los recolectores con ubicación en tiempo real
+                fetch('/api/recolectores/ubicaciones')
+                    .then(res => res.json())
+                    .then(recolectores => {
+                        console.log('Recolectores encontrados:', recolectores);
+                        
+                        if (recolectores.length > 0) {
+                            const recolectorMarkers = {};
+                            const routeLines = {};
+                            
+                            recolectores.forEach(recolector => {
+                                const marker = L.marker([recolector.lat, recolector.lng], {
+                                    icon: recolectorIcon,
+                                    title: `${recolector.nombre} ${recolector.apellidos}`
+                                }).addTo(currentMap);
+                                
+                                marker.bindPopup(`
+                                    <div class="text-center">
+                                        <b style="font-size: 14px;">${recolector.nombre} ${recolector.apellidos}</b><br>
+                                        <span style="font-size: 12px; color: #666;">ID: ${recolector.id_recolector}</span><br>
+                                        <span style="font-size: 12px; color: #666;">📞 ${recolector.telefono || 'N/A'}</span><br>
+                                        <span style="font-size: 11px; color: #999;">Última actualización: ${new Date(recolector.timestamp).toLocaleTimeString()}</span>
+                                    </div>
+                                `);
+                                
+                                recolectorMarkers[recolector.id_recolector] = marker;
+                                
+                                // Crear línea de ruta desde usuario a este recolector
+                                const routeLine = L.polyline([
+                                    [recolector.lat, recolector.lng],
+                                    [userLat, userLng]
+                                ], {
+                                    color: '#10B981',
+                                    weight: 2,
+                                    opacity: 0.4,
+                                    dashArray: '5, 5'
+                                }).addTo(currentMap);
+                                
+                                routeLines[recolector.id_recolector] = routeLine;
+                            });
+                            
+                            // Actualizar ubicaciones cada 5 segundos
+                            setInterval(() => {
+                                fetch('/api/recolectores/ubicaciones')
+                                    .then(res => res.json())
+                                    .then(recolectoresActualizados => {
+                                        recolectoresActualizados.forEach(recolector => {
+                                            if (recolectorMarkers[recolector.id_recolector]) {
+                                                const marker = recolectorMarkers[recolector.id_recolector];
+                                                marker.setLatLng([recolector.lat, recolector.lng]);
+                                                
+                                                // Actualizar línea de ruta
+                                                if (routeLines[recolector.id_recolector]) {
+                                                    routeLines[recolector.id_recolector].setLatLngs([
+                                                        [recolector.lat, recolector.lng],
+                                                        [userLat, userLng]
+                                                    ]);
+                                                    
+                                                    // Calcular distancia
+                                                    const distancia = calcularDistancia(recolector.lat, recolector.lng, userLat, userLng);
+                                                    const popup = marker.getPopup();
+                                                    popup.setContent(`
+                                                        <div class="text-center">
+                                                            <b style="font-size: 14px;">${recolector.nombre} ${recolector.apellidos}</b><br>
+                                                            <span style="font-size: 12px; color: #666;">📍 ${distancia.toFixed(1)} km de aquí</span><br>
+                                                            <span style="font-size: 12px; color: #666;">📞 ${recolector.telefono || 'N/A'}</span><br>
+                                                            <span style="font-size: 11px; color: #999;">Última actualización: ${new Date(recolector.timestamp).toLocaleTimeString()}</span>
+                                                        </div>
+                                                    `);
+                                                }
+                                            }
+                                        });
+                                    })
+                                    .catch(err => console.error('Error actualizando recolectores:', err));
+                            }, 5000);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error obteniendo recolectores:', err);
+                        // Si no hay recolectores, mostrar mensaje
+                        const msg = document.querySelector('.bg-yellow-50');
+                        if (msg) msg.innerHTML = '<p class="text-sm text-yellow-700">⚠️ No hay recolectores activos en este momento</p>';
+                    });
+
                 
                 // Forzar actualización del tamaño del mapa
                 setTimeout(() => {
@@ -1315,7 +1375,95 @@ function initPerfil() {
 }
 
 function editarPerfil() {
-    alert('Función de editar perfil próximamente');
+    if (!userProfile) {
+        alert('No se pudo cargar la información del perfil');
+        return;
+    }
+    
+    const perfilInfo = document.getElementById('perfilInfo');
+    perfilInfo.innerHTML = `
+        <form id="formEditarPerfil" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Nombre</label>
+                <input type="text" name="nombre" value="${userProfile.nombre}" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Apellidos</label>
+                <input type="text" name="apellidos" value="${userProfile.apellidos}" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <input type="email" name="email" value="${userProfile.email}" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Teléfono</label>
+                <input type="tel" name="telefono" value="${userProfile.telefono || ''}" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Dirección</label>
+                <input type="text" name="direccion" value="${userProfile.direccion || ''}" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+            <div class="flex gap-3 pt-4">
+                <button type="submit" class="flex-1 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                    Guardar Cambios
+                </button>
+                <button type="button" onclick="cancelarEdicion()" class="flex-1 bg-gray-100 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-200 transition-colors">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    `;
+    
+    // Agregar event listener al formulario
+    document.getElementById('formEditarPerfil').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const data = {
+            nombre: formData.get('nombre'),
+            apellidos: formData.get('apellidos'),
+            email: formData.get('email'),
+            telefono: formData.get('telefono'),
+            direccion: formData.get('direccion')
+        };
+        
+        try {
+            const response = await fetch('/api/usuario/perfil', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Actualizar userProfile
+                userProfile = { ...userProfile, ...data };
+                
+                // Mostrar mensaje de éxito
+                alert('Perfil actualizado correctamente');
+                
+                // Recargar la vista del perfil
+                loadPerfilData();
+            } else {
+                alert('Error al actualizar el perfil: ' + (result.error || 'Error desconocido'));
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al actualizar el perfil');
+        }
+    });
+}
+
+function cancelarEdicion() {
+    loadPerfilData();
 }
 
 // Obtener ubicación GPS en el mapa de seguimiento

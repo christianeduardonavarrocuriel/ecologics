@@ -200,6 +200,40 @@
                 
                 const html = `
                     <div class="space-y-6">
+                        <!-- Widget de Ubicación en Tiempo Real -->
+                        <div class="bg-gradient-to-r from-green-600 to-green-700 rounded-xl p-6 text-white shadow-lg">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-3">
+                                    <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L9.9 4.05a7 7 0 00-9.9 0zM9 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
+                                    <h2 class="text-2xl font-bold">Mi Ubicación en Tiempo Real</h2>
+                                </div>
+                                <div id="ubicacionBadge" class="text-sm font-medium px-3 py-1 bg-green-500 rounded-full">Esperando ubicación...</div>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <p class="text-green-100 text-sm mb-1">Latitud</p>
+                                    <p id="ubicacionLat" class="text-xl font-bold">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-green-100 text-sm mb-1">Longitud</p>
+                                    <p id="ubicacionLng" class="text-xl font-bold">--</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex gap-3">
+                                <button onclick="enviarUbicacion()" class="flex-1 bg-white hover:bg-gray-100 text-green-700 font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.172 4.172a4 4 0 015.656 0L10 6.343l.172-.171a4 4 0 115.656 5.656L10 17.657l-5.828-5.829a4 4 0 010-5.656z" clip-rule="evenodd"></path></svg>
+                                    📍 Enviar Mi Ubicación Ahora
+                                </button>
+                                <button onclick="iniciarSeguimientoAutomatico()" id="btnSeguimiento" class="bg-white hover:bg-gray-100 text-green-700 font-bold py-2 px-4 rounded-lg transition flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1h7.586a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM5 16a2 2 0 11-4 0 2 2 0 014 0zm12 0a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                    Auto
+                                </button>
+                            </div>
+                            <p id="ubicacionMsg" class="text-green-100 text-xs mt-3"></p>
+                        </div>
+                        
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition">
                                 <div class="flex items-center justify-between mb-2">
@@ -264,20 +298,54 @@
         }
 
         // Vista Solicitudes con Mapa
-        function loadSolicitudes() {
-            const html = `
-                <div class="space-y-4">
-                    <div class="map-container">
-                        <div class="map-header bg-gradient-to-r from-green-50 to-emerald-50">
-                            <h3>📍 Solicitudes Disponibles</h3>
-                            <p>Todas las recolecciones disponibles en el mapa</p>
+        async function loadSolicitudes() {
+            try {
+                const response = await fetch(`${API_BASE}/recolector/solicitudes-disponibles`);
+                const solicitudes = await response.json();
+                
+                const html = `
+                    <div class="space-y-4">
+                        <div class="bg-white rounded-xl p-6 border border-gray-200 mb-6">
+                            <div class="flex items-center gap-3">
+                                <div class="text-3xl">📋</div>
+                                <div>
+                                    <h3 class="font-semibold text-gray-800 text-lg">Solicitudes Disponibles</h3>
+                                    <p class="text-sm text-gray-600">Total: ${solicitudes.length} recolecciones pendientes</p>
+                                </div>
+                            </div>
                         </div>
-                        <div id="mapaSolicitud" class="rounded-lg overflow-hidden"></div>
+                        
+                        ${solicitudes.length > 0 ? solicitudes.map(s => `
+                            <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg hover:border-green-300 transition">
+                                <div class="flex items-start justify-between mb-4">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <h3 class="font-semibold text-gray-800 text-lg">${s.tipo_residuo}</h3>
+                                            <span class="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">${s.kilos} kg</span>
+                                        </div>
+                                        <p class="text-sm text-gray-600">📍 ${s.direccion}</p>
+                                        <p class="text-xs text-gray-500 mt-1">ID: #${s.id_solicitud} | Solicitante: ${s.nombre} ${s.apellidos}</p>
+                                    </div>
+                                </div>
+                                
+                                ${s.info_extra ? `<p class="text-sm text-gray-600 mb-3">📝 ${s.info_extra}</p>` : ''}
+                                ${s.usuario_telefono ? `<p class="text-sm text-gray-600 mb-3">📞 ${s.usuario_telefono}</p>` : ''}
+                                
+                                <div class="flex gap-2">
+                                    <button onclick="aceptarSolicitud(${s.id_solicitud})" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
+                                        ✓ Aceptar Solicitud
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('') : '<div class="text-center py-12"><p class="text-gray-500 text-lg">✓ No hay solicitudes disponibles</p></div>'}
                     </div>
-                </div>
-            `;
-            document.getElementById('mainContent').innerHTML = html;
-            setTimeout(async () => await initSolicitudesMap('mapaSolicitud'), 100);
+                `;
+                
+                document.getElementById('mainContent').innerHTML = html;
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('mainContent').innerHTML = '<p class="text-red-500">Error cargando solicitudes</p>';
+            }
         }
 
         // Vista Mis Recolecciones
@@ -659,13 +727,14 @@
                 document.getElementById('mainContent').innerHTML = html;
             } catch (error) {
                 console.error('Error:', error);
+                document.getElementById('mainContent').innerHTML = '<p class="text-red-500">Error cargando solicitudes</p>';
             }
         }
 
         // Vista Mis Recolecciones
         async function loadMisRecolecciones() {
             try {
-                const response = await fetch(`${API_BASE}/usuario/solicitudes?estado=todas`);
+                const response = await fetch(`${API_BASE}/recolector/mis-solicitudes`);
                 const solicitudes = await response.json();
                 
                 const html = `
@@ -707,7 +776,148 @@
                 const html = `
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div class="lg:col-span-2">
+                            <div class="bg-white rounded-xl p-8 border border-gray-200 mb-6">
+                                <div class="flex items-center gap-6 mb-8">
+                                    <div class="w-20 h-20 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white text-3xl font-bold">
+                                        ${perfil.nombre.charAt(0)}${perfil.apellidos.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <h2 class="text-2xl font-bold text-gray-800">${perfil.nombre} ${perfil.apellidos}</h2>
+                                        <p class="text-gray-600">@${perfil.username}</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="space-y-4">
+                                    <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                                        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2.94 6.412A2 2 0 002 8.25V16a2 2 0 002 2h12a2 2 0 002-2V8.25a2 2 0 00-.94-1.838l-8-4A2 2 0 008 0H8a2 2 0 00-1.06.374l-8 4z"></path></svg>
+                                        <div>
+                                            <p class="text-sm text-gray-600">Email</p>
+                                            <p class="text-gray-800">${perfil.email}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                                        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773c.418 1.265 1.215 2.807 2.604 4.196 1.389 1.389 2.93 2.186 4.196 2.604l.773-1.548a1 1 0 011.06-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path></svg>
+                                        <div>
+                                            <p class="text-sm text-gray-600">Teléfono</p>
+                                            <p class="text-gray-800">${perfil.telefono}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                                        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L9.9 4.05a7 7 0 00-9.9 0zM9 11a2 2 0 100-4 2 2 0 000 4z"></path></svg>
+                                        <div>
+                                            <p class="text-sm text-gray-600">Dirección</p>
+                                            <p class="text-gray-800">${perfil.direccion}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Formulario de cambio de contraseña -->
                             <div class="bg-white rounded-xl p-8 border border-gray-200">
+                                <h3 class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg>
+                                    Cambiar Contraseña
+                                </h3>
+                                
+                                <div id="cambiarContraseñaMsg" class="mb-4"></div>
+                                
+                                <form id="cambiarContraseñaForm" class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Contraseña Actual</label>
+                                        <input type="password" id="contraActual" placeholder="Ingresa tu contraseña actual"
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" required>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Nueva Contraseña</label>
+                                        <input type="password" id="contraNueva" placeholder="Mínimo 6 caracteres"
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" required minlength="6">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Confirmar Nueva Contraseña</label>
+                                        <input type="password" id="contraConfirmar" placeholder="Repite tu nueva contraseña"
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" required minlength="6">
+                                    </div>
+                                    
+                                    <button type="submit" class="w-full bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg transition-all font-medium">
+                                        🔒 Cambiar Contraseña
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('mainContent').innerHTML = html;
+                
+                // Agregar event listener al formulario
+                const form = document.getElementById('cambiarContraseñaForm');
+                if (form) {
+                    form.addEventListener('submit', cambiarContraseña);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+        
+        // Función para cambiar contraseña
+        async function cambiarContraseña(e) {
+            e.preventDefault();
+            
+            const contraActual = document.getElementById('contraActual').value;
+            const contraNueva = document.getElementById('contraNueva').value;
+            const contraConfirmar = document.getElementById('contraConfirmar').value;
+            const msgDiv = document.getElementById('cambiarContraseñaMsg');
+            
+            // Validaciones
+            if (!contraActual || !contraNueva || !contraConfirmar) {
+                mostrarMensaje(msgDiv, 'Todos los campos son obligatorios', 'error');
+                return;
+            }
+            
+            if (contraNueva !== contraConfirmar) {
+                mostrarMensaje(msgDiv, 'Las contraseñas nuevas no coinciden', 'error');
+                return;
+            }
+            
+            if (contraNueva.length < 6) {
+                mostrarMensaje(msgDiv, 'La contraseña debe tener al menos 6 caracteres', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/usuario/cambiar-contrasena`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        contrasena_actual: contraActual,
+                        contrasena_nueva: contraNueva,
+                        contrasena_confirmar: contraConfirmar
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    mostrarMensaje(msgDiv, '✓ Contraseña actualizada correctamente', 'success');
+                    document.getElementById('cambiarContraseñaForm').reset();
+                    setTimeout(() => msgDiv.innerHTML = '', 3000);
+                } else {
+                    mostrarMensaje(msgDiv, result.error || 'Error al cambiar la contraseña', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                mostrarMensaje(msgDiv, 'Error al cambiar la contraseña', 'error');
+            }
+        }
+        
+        function mostrarMensaje(div, mensaje, tipo) {
+            const bgColor = tipo === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800';
+            div.innerHTML = `<div class="p-4 ${bgColor} border rounded-lg text-sm">${mensaje}</div>`;
+        }
                                 <div class="flex items-center gap-6 mb-8">
                                     <div class="w-20 h-20 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white text-3xl font-bold">
                                         ${perfil.nombre.charAt(0)}${perfil.apellidos.charAt(0)}
@@ -799,8 +1009,158 @@
         }
 
         // Funciones auxiliares
-        function aceptarSolicitud(id) {
-            alert('Solicitud #' + id + ' aceptada');
+        async function aceptarSolicitud(id) {
+            try {
+                const response = await fetch(`${API_BASE}/recolector/aceptar-solicitud/${id}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({})
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('✓ ¡Solicitud #' + id + ' aceptada correctamente!');
+                    loadSolicitudes(); // Recargar lista
+                } else {
+                    alert('Error: ' + (result.error || 'No se pudo aceptar la solicitud'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al aceptar la solicitud');
+            }
+        }
+
+        // ==================== FUNCIONES DE UBICACIÓN ====================
+        let ubicacionAutomatica = false;
+        let watchId = null;
+        
+        // Obtener ubicación actual y enviarla
+        async function enviarUbicacion() {
+            const msgDiv = document.getElementById('ubicacionMsg');
+            
+            if (!navigator.geolocation) {
+                msgDiv.textContent = '❌ Tu navegador no soporta geolocalización';
+                return;
+            }
+            
+            msgDiv.textContent = '📍 Obteniendo ubicación GPS...';
+            
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+                    
+                    // Actualizar UI
+                    document.getElementById('ubicacionLat').textContent = lat.toFixed(7);
+                    document.getElementById('ubicacionLng').textContent = lng.toFixed(7);
+                    document.getElementById('ubicacionBadge').textContent = `✓ Actualizado hace unos segundos`;
+                    
+                    try {
+                        const response = await fetch(`${API_BASE}/ubicacion`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                lat: lat,
+                                lng: lng,
+                                accuracy: accuracy
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            msgDiv.textContent = `✓ Ubicación enviada correctamente (±${accuracy.toFixed(0)}m)`;
+                        } else {
+                            msgDiv.textContent = '⚠️ Error al enviar ubicación';
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        msgDiv.textContent = '❌ Error al enviar ubicación';
+                    }
+                },
+                (error) => {
+                    let errorMsg = '';
+                    switch(error.code) {
+                        case 1: errorMsg = 'Permiso denegado. Habilita GPS en tu navegador'; break;
+                        case 2: errorMsg = 'Ubicación no disponible. Verifica tu conexión'; break;
+                        case 3: errorMsg = 'Tiempo de espera agotado'; break;
+                        default: errorMsg = 'Error desconocido';
+                    }
+                    msgDiv.textContent = `❌ ${errorMsg}`;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        }
+        
+        // Seguimiento automático de ubicación
+        async function iniciarSeguimientoAutomatico() {
+            if (ubicacionAutomatica) {
+                // Detener seguimiento
+                ubicacionAutomatica = false;
+                if (watchId !== null) {
+                    navigator.geolocation.clearWatch(watchId);
+                }
+                document.getElementById('btnSeguimiento').textContent = '▶ Auto';
+                document.getElementById('btnSeguimiento').classList.remove('bg-yellow-100', 'text-yellow-700');
+                document.getElementById('btnSeguimiento').classList.add('bg-white', 'text-green-700');
+                document.getElementById('ubicacionMsg').textContent = '⏸️ Seguimiento detenido';
+                return;
+            }
+            
+            if (!navigator.geolocation) {
+                document.getElementById('ubicacionMsg').textContent = '❌ Tu navegador no soporta geolocalización';
+                return;
+            }
+            
+            ubicacionAutomatica = true;
+            document.getElementById('btnSeguimiento').textContent = '⏹️ Detener';
+            document.getElementById('btnSeguimiento').classList.add('bg-yellow-100', 'text-yellow-700');
+            document.getElementById('btnSeguimiento').classList.remove('bg-white', 'text-green-700');
+            document.getElementById('ubicacionMsg').textContent = '🔴 Seguimiento automático activo';
+            
+            let updateCount = 0;
+            watchId = navigator.geolocation.watchPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+                    
+                    updateCount++;
+                    
+                    // Actualizar UI
+                    document.getElementById('ubicacionLat').textContent = lat.toFixed(7);
+                    document.getElementById('ubicacionLng').textContent = lng.toFixed(7);
+                    document.getElementById('ubicacionBadge').textContent = `🔴 Activo (${updateCount} actualizaciones)`;
+                    
+                    // Enviar al servidor cada actualización
+                    try {
+                        await fetch(`${API_BASE}/ubicacion`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                lat: lat,
+                                lng: lng,
+                                accuracy: accuracy
+                            })
+                        });
+                    } catch (error) {
+                        console.error('Error enviando ubicación:', error);
+                    }
+                },
+                (error) => {
+                    console.error('Error de geolocalización:', error);
+                    document.getElementById('ubicacionMsg').textContent = '❌ Error en geolocalización';
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 30000,
+                    maximumAge: 0
+                }
+            );
         }
 
         function logout() {

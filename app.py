@@ -133,6 +133,7 @@ def login():
 
         if supabase_client:
             try:
+                # Primero buscar en tabla usuarios
                 response = supabase_client.table('usuarios') \
                     .select('*') \
                     .or_(f"correo.eq.{identifier},username.eq.{identifier}") \
@@ -143,9 +144,33 @@ def login():
                     candidate = rows[0]
                     if check_password_hash(candidate['contrasena'], password):
                         user = candidate
-            except Exception as exc:  # pragma: no cover - logging only
+                        user['id_usuario'] = candidate.get('id_usuario')
+                        user['username'] = candidate.get('username', candidate.get('correo'))
+                        
+                # Si no se encuentra en usuarios, buscar en recolectores
+                if not user:
+                    response_rec = supabase_client.table('recolectores') \
+                        .select('*') \
+                        .eq('correo', identifier) \
+                        .limit(1) \
+                        .execute()
+                    rows_rec = response_rec.data or []
+                    if rows_rec:
+                        candidate = rows_rec[0]
+                        if check_password_hash(candidate['contrasena'], password):
+                            # Formatear datos de recolector como usuario
+                            user = {
+                                'id_usuario': candidate['id_recolector'],
+                                'username': candidate['correo'],
+                                'correo': candidate['correo'],
+                                'nombre': f"{candidate['nombre']} {candidate['apellido']}",
+                                'rol': 'recolector',
+                                'contrasena': candidate['contrasena']
+                            }
+                            
+            except Exception as exc:
                 print(f"Error consultando Supabase: {exc}")
-                return jsonify({'success': False, 'message': 'No se pudo validar al usuario en Supabase'}), 500
+                return jsonify({'success': False, 'message': 'No se pudo validar al usuario'}), 500
         else:
             conn = get_db_connection()
             db_user = conn.execute(
@@ -161,7 +186,7 @@ def login():
             return jsonify({'success': False, 'message': 'Usuario o contraseña incorrectos'}), 401
 
         session['user_id'] = user['id_usuario']
-        session['username'] = user['username']
+        session['username'] = user.get('username', user.get('correo'))
         session['rol'] = user['rol']
         session['nombre'] = user['nombre']
         return jsonify({'success': True, 'rol': user['rol']})
@@ -313,22 +338,41 @@ def get_mapbox_token():
 @app.route('/api/usuario/perfil')
 def get_perfil():
     if 'user_id' not in session:
-        session['user_id'] = 1  # Usuario demo
+        return jsonify({'error': 'No autenticado'}), 401
+    
+    rol = session.get('rol', 'usuario')
     
     # Intentar con Supabase primero
     if supabase_client:
         try:
-            response = supabase_client.table('usuarios').select('*').eq('id_usuario', session['user_id']).execute()
-            if response.data and len(response.data) > 0:
-                user = response.data[0]
-                return jsonify({
-                    'nombre': user.get('nombre', ''),
-                    'apellidos': user.get('apellidos', ''),
-                    'email': user.get('correo', ''),
-                    'telefono': user.get('telefono', ''),
-                    'direccion': user.get('direccion', ''),
-                    'username': user.get('username', '')
-                })
+            # Si es recolector, buscar en tabla recolectores
+            if rol == 'recolector':
+                response = supabase_client.table('recolectores').select('*').eq('id_recolector', session['user_id']).execute()
+                if response.data and len(response.data) > 0:
+                    user = response.data[0]
+                    return jsonify({
+                        'nombre': user.get('nombre', ''),
+                        'apellidos': user.get('apellido', ''),
+                        'email': user.get('correo', ''),
+                        'telefono': user.get('telefono', ''),
+                        'direccion': '',
+                        'username': user.get('correo', ''),
+                        'vehiculo': user.get('vehiculo', ''),
+                        'placa': user.get('placa', '')
+                    })
+            else:
+                # Buscar en tabla usuarios
+                response = supabase_client.table('usuarios').select('*').eq('id_usuario', session['user_id']).execute()
+                if response.data and len(response.data) > 0:
+                    user = response.data[0]
+                    return jsonify({
+                        'nombre': user.get('nombre', ''),
+                        'apellidos': user.get('apellidos', ''),
+                        'email': user.get('correo', ''),
+                        'telefono': user.get('telefono', ''),
+                        'direccion': user.get('direccion', ''),
+                        'username': user.get('username', '')
+                    })
         except Exception as e:
             print(f'Error consultando perfil en Supabase: {e}')
     
@@ -337,14 +381,82 @@ def get_perfil():
     user = conn.execute('SELECT * FROM usuarios WHERE id_usuario = ?', (session['user_id'],)).fetchone()
     conn.close()
     
-    return jsonify({
-        'nombre': user['nombre'],
-        'apellidos': user['apellidos'],
-        'email': user['correo'],
-        'telefono': user['telefono'],
-        'direccion': user['direccion'],
-        'username': user['username']
-    })
+    if user:
+        return jsonify({
+            'nombre': user['nombre'],
+            'apellidos': user['apellidos'],
+            'email': user['correo'],
+            'telefono': user['telefono'],
+            'direccion': user['direccion'],
+            'username': user['username']
+        })
+    
+    return jsonify({'error': 'Usuario no encontrado'}), 404
+
+# Actualizar perfil del usuario
+@app.route('/api/usuario/perfil', methods=['PUT', 'POST'])
+def actualizar_perfil():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'No autenticado'}), 401
+    
+    data = request.get_json()
+    rol = session.get('rol', 'usuario')
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            # Si es recolector, actualizar en tabla recolectores
+            if rol == 'recolector':
+                update_data = {}
+                if 'nombre' in data:
+                    update_data['nombre'] = data['nombre']
+                if 'apellidos' in data:
+                    update_data['apellido'] = data['apellidos']
+                if 'telefono' in data:
+                    update_data['telefono'] = data['telefono']
+                if 'email' in data:
+                    update_data['correo'] = data['email']
+                if 'vehiculo' in data:
+                    update_data['vehiculo'] = data['vehiculo']
+                if 'placa' in data:
+                    update_data['placa'] = data['placa']
+                
+                supabase_client.table('recolectores').update(update_data).eq('id_recolector', session['user_id']).execute()
+                return jsonify({'success': True, 'message': 'Perfil actualizado correctamente'})
+            else:
+                # Actualizar en tabla usuarios
+                update_data = {}
+                if 'nombre' in data:
+                    update_data['nombre'] = data['nombre']
+                if 'apellidos' in data:
+                    update_data['apellidos'] = data['apellidos']
+                if 'telefono' in data:
+                    update_data['telefono'] = data['telefono']
+                if 'email' in data:
+                    update_data['correo'] = data['email']
+                if 'direccion' in data:
+                    update_data['direccion'] = data['direccion']
+                if 'username' in data:
+                    update_data['username'] = data['username']
+                
+                supabase_client.table('usuarios').update(update_data).eq('id_usuario', session['user_id']).execute()
+                return jsonify({'success': True, 'message': 'Perfil actualizado correctamente'})
+        except Exception as e:
+            print(f'Error actualizando perfil en Supabase: {e}')
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    conn.execute('''
+        UPDATE usuarios 
+        SET nombre = ?, apellidos = ?, telefono = ?, correo = ?, direccion = ?
+        WHERE id_usuario = ?
+    ''', (data.get('nombre'), data.get('apellidos'), data.get('telefono'), 
+          data.get('email'), data.get('direccion'), session['user_id']))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Perfil actualizado correctamente'})
 
 # Obtener solicitudes del usuario
 @app.route('/api/usuario/solicitudes')
@@ -437,6 +549,233 @@ def crear_solicitud():
     
     return jsonify({'success': True, 'id_solicitud': id_solicitud})
 
+# ==================== ENDPOINTS DE RECOLECTOR ====================
+
+# Obtener solicitudes disponibles (estado = 'pendiente')
+@app.route('/api/recolector/solicitudes-disponibles')
+def get_solicitudes_disponibles():
+    if 'user_id' not in session:
+        session['user_id'] = 2  # Recolector demo
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            response = supabase_client.table('solicitudes_recoleccion').select('*').eq('estado', 'pendiente').order('fecha_solicitud', desc=True).execute()
+            if response.data:
+                return jsonify(response.data)
+        except Exception as e:
+            print(f'Error consultando Supabase: {e}')
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    solicitudes = conn.execute('''
+        SELECT sr.*, u.nombre, u.apellidos, u.telefono as usuario_telefono
+        FROM solicitudes_recoleccion sr
+        JOIN usuarios u ON sr.id_usuario = u.id_usuario
+        WHERE sr.estado = 'pendiente'
+        ORDER BY sr.fecha_solicitud DESC
+    ''').fetchall()
+    conn.close()
+    
+    return jsonify([dict(row) for row in solicitudes])
+
+# Obtener mis solicitudes aceptadas (recolector actual)
+@app.route('/api/recolector/mis-solicitudes')
+def get_mis_solicitudes():
+    if 'user_id' not in session:
+        session['user_id'] = 2  # Recolector demo
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            # Obtener asignaciones del recolector actual
+            response = supabase_client.table('asignaciones').select('id_solicitud').eq('id_recolector', session['user_id']).execute()
+            
+            if response.data:
+                ids_solicitudes = [a['id_solicitud'] for a in response.data]
+                solicitudes = []
+                for id_sol in ids_solicitudes:
+                    sol_resp = supabase_client.table('solicitudes_recoleccion').select('*').eq('id_solicitud', id_sol).execute()
+                    if sol_resp.data:
+                        solicitudes.extend(sol_resp.data)
+                return jsonify(solicitudes)
+        except Exception as e:
+            print(f'Error consultando Supabase: {e}')
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    solicitudes = conn.execute('''
+        SELECT sr.*, u.nombre, u.apellidos, u.telefono as usuario_telefono, u.direccion as usuario_direccion
+        FROM solicitudes_recoleccion sr
+        JOIN usuarios u ON sr.id_usuario = u.id_usuario
+        JOIN asignaciones a ON sr.id_solicitud = a.id_solicitud
+        WHERE a.id_recolector = ? AND sr.estado IN ('pendiente', 'en-proceso')
+        ORDER BY sr.fecha_solicitud DESC
+    ''', (session['user_id'],)).fetchall()
+    conn.close()
+    
+    return jsonify([dict(row) for row in solicitudes])
+
+# Aceptar una solicitud
+@app.route('/api/recolector/aceptar-solicitud/<int:id_solicitud>', methods=['POST'])
+def aceptar_solicitud(id_solicitud):
+    if 'user_id' not in session:
+        session['user_id'] = 2  # Recolector demo
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            # Crear asignación
+            asignacion = {
+                'id_recolector': session['user_id'],
+                'id_solicitud': id_solicitud,
+                'fecha_asignacion': datetime.now().isoformat(),
+                'estado': 'asignada'
+            }
+            supabase_client.table('asignaciones').insert(asignacion).execute()
+            
+            # Actualizar estado de solicitud a 'en-proceso'
+            supabase_client.table('solicitudes_recoleccion').update({'estado': 'en-proceso'}).eq('id_solicitud', id_solicitud).execute()
+            
+            return jsonify({'success': True, 'mensaje': 'Solicitud aceptada correctamente'})
+        except Exception as e:
+            print(f'Error aceptando solicitud en Supabase: {e}')
+            return jsonify({'success': False, 'error': str(e)}), 400
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Verificar que la solicitud existe
+        solicitud = cursor.execute('SELECT * FROM solicitudes_recoleccion WHERE id_solicitud = ?', (id_solicitud,)).fetchone()
+        if not solicitud:
+            return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+        
+        # Crear asignación (si la tabla existe)
+        try:
+            cursor.execute('''
+                INSERT INTO asignaciones (id_recolector, id_solicitud, estado)
+                VALUES (?, ?, ?)
+            ''', (session['user_id'], id_solicitud, 'asignada'))
+        except:
+            pass  # La tabla de asignaciones podría no existir
+        
+        # Actualizar estado de solicitud
+        cursor.execute('UPDATE solicitudes_recoleccion SET estado = ? WHERE id_solicitud = ?', ('en-proceso', id_solicitud))
+        
+        conn.commit()
+        
+        return jsonify({'success': True, 'mensaje': 'Solicitud aceptada correctamente'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
+    finally:
+        conn.close()
+
+# Actualizar estado de solicitud
+@app.route('/api/recolector/actualizar-estado/<int:id_solicitud>', methods=['POST'])
+def actualizar_estado_solicitud(id_solicitud):
+    if 'user_id' not in session:
+        session['user_id'] = 2  # Recolector demo
+    
+    data = request.get_json()
+    nuevo_estado = data.get('estado', 'en-proceso')  # 'en-proceso', 'completada'
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            supabase_client.table('solicitudes_recoleccion').update({'estado': nuevo_estado}).eq('id_solicitud', id_solicitud).execute()
+            return jsonify({'success': True, 'mensaje': f'Estado actualizado a: {nuevo_estado}'})
+        except Exception as e:
+            print(f'Error actualizando estado en Supabase: {e}')
+            return jsonify({'success': False, 'error': str(e)}), 400
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('UPDATE solicitudes_recoleccion SET estado = ? WHERE id_solicitud = ?', (nuevo_estado, id_solicitud))
+        conn.commit()
+        return jsonify({'success': True, 'mensaje': f'Estado actualizado a: {nuevo_estado}'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
+    finally:
+        conn.close()
+
+# ==================== ENDPOINTS DE USUARIO (CONTRASEÑA, PERFIL) ====================
+
+# Cambiar contraseña para cualquier usuario (recolector, usuario, admin)
+@app.route('/api/usuario/cambiar-contrasena', methods=['POST'])
+def cambiar_contrasena():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'No autenticado'}), 401
+    
+    data = request.get_json()
+    contrasena_actual = data.get('contrasena_actual', '').strip()
+    contrasena_nueva = data.get('contrasena_nueva', '').strip()
+    contrasena_confirmar = data.get('contrasena_confirmar', '').strip()
+    
+    if not all([contrasena_actual, contrasena_nueva, contrasena_confirmar]):
+        return jsonify({'success': False, 'error': 'Todos los campos son obligatorios'}), 400
+    
+    if contrasena_nueva != contrasena_confirmar:
+        return jsonify({'success': False, 'error': 'Las contraseñas nuevas no coinciden'}), 400
+    
+    if len(contrasena_nueva) < 6:
+        return jsonify({'success': False, 'error': 'La contraseña debe tener al menos 6 caracteres'}), 400
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            # Obtener usuario actual
+            user_resp = supabase_client.table('usuarios').select('contrasena').eq('id_usuario', session['user_id']).execute()
+            
+            if not user_resp.data:
+                return jsonify({'success': False, 'error': 'Usuario no encontrado'}), 404
+            
+            # Verificar contraseña actual
+            if not check_password_hash(user_resp.data[0]['contrasena'], contrasena_actual):
+                return jsonify({'success': False, 'error': 'Contraseña actual incorrecta'}), 403
+            
+            # Actualizar contraseña
+            nueva_hash = generate_password_hash(contrasena_nueva)
+            supabase_client.table('usuarios').update({'contrasena': nueva_hash}).eq('id_usuario', session['user_id']).execute()
+            
+            return jsonify({'success': True, 'mensaje': 'Contraseña actualizada correctamente'})
+        except Exception as e:
+            print(f'Error actualizando contraseña en Supabase: {e}')
+            # Continuar con SQLite como fallback
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Obtener contraseña actual
+        usuario = cursor.execute('SELECT contrasena FROM usuarios WHERE id_usuario = ?', (session['user_id'],)).fetchone()
+        
+        if not usuario:
+            return jsonify({'success': False, 'error': 'Usuario no encontrado'}), 404
+        
+        # Verificar contraseña actual
+        if not check_password_hash(usuario['contrasena'], contrasena_actual):
+            return jsonify({'success': False, 'error': 'Contraseña actual incorrecta'}), 403
+        
+        # Actualizar contraseña
+        nueva_hash = generate_password_hash(contrasena_nueva)
+        cursor.execute('UPDATE usuarios SET contrasena = ? WHERE id_usuario = ?', (nueva_hash, session['user_id']))
+        conn.commit()
+        
+        return jsonify({'success': True, 'mensaje': 'Contraseña actualizada correctamente'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
+    finally:
+        conn.close()
+
 # Obtener estadísticas del dashboard
 @app.route('/api/usuario/estadisticas')
 def get_estadisticas():
@@ -506,25 +845,37 @@ def get_estadisticas():
 @app.route('/api/usuario/quejas', methods=['POST'])
 def crear_queja():
     if 'user_id' not in session:
-        session['user_id'] = 1  # Usuario demo
+        return jsonify({'success': False, 'error': 'No autenticado'}), 401
     
     data = request.get_json()
+    
+    if not data.get('motivo') or not data.get('descripcion'):
+        return jsonify({'success': False, 'error': 'Motivo y descripción son requeridos'}), 400
     
     # Intentar con Supabase primero
     if supabase_client:
         try:
-            response = supabase_client.table('quejas').insert({
+            # Preparar datos para la tabla quejas_soporte
+            queja_data = {
                 'id_usuario': session['user_id'],
-                'id_solicitud': data.get('numeroSolicitud'),
-                'rol_reporta': 'usuario',
                 'motivo': data['motivo'],
-                'detalles': data['descripcion'],
+                'descripcion': data['descripcion'],
                 'estado': 'pendiente'
-            }).execute()
+            }
             
-            return jsonify({'success': True})
+            # Campos opcionales
+            if data.get('id_recolector'):
+                queja_data['id_recolector'] = data['id_recolector']
+            
+            if data.get('numeroSolicitud') or data.get('id_solicitud'):
+                queja_data['id_solicitud'] = data.get('numeroSolicitud') or data.get('id_solicitud')
+            
+            response = supabase_client.table('quejas_soporte').insert(queja_data).execute()
+            
+            return jsonify({'success': True, 'message': 'Queja enviada correctamente'})
         except Exception as e:
             print(f'Error creando queja en Supabase: {e}')
+            return jsonify({'success': False, 'error': str(e)}), 500
     
     # Fallback a SQLite
     conn = get_db_connection()
@@ -543,7 +894,7 @@ def crear_queja():
     conn.commit()
     conn.close()
     
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'message': 'Queja enviada correctamente'})
 
 # Sugerir ruta
 @app.route('/api/usuario/rutas-sugeridas', methods=['POST'])
@@ -698,6 +1049,88 @@ def guardar_ubicacion():
     
     return jsonify({'success': True})
 
+# Obtener ubicaciones de todos los recolectores activos
+@app.route('/api/recolectores/ubicaciones')
+def get_recolectores_ubicaciones():
+    """Obtiene la ubicación más reciente de todos los recolectores para mostrar en el mapa"""
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            # Obtener todos los recolectores de la tabla 'recolectores'
+            recolectores = supabase_client.table('recolectores').select('id_recolector, nombre, apellido, telefono, vehiculo, placa').execute()
+            
+            print(f"📋 Recolectores encontrados: {len(recolectores.data) if recolectores.data else 0}")
+            
+            resultado = []
+            if recolectores.data:
+                for recolector in recolectores.data:
+                    # Obtener última ubicación de cada recolector
+                    ubicaciones = supabase_client.table('ubicaciones_recolectores') \
+                        .select('id_ubicacion, lat, lng') \
+                        .eq('id_recolector', recolector['id_recolector']) \
+                        .order('id_ubicacion', desc=True) \
+                        .limit(1) \
+                        .execute()
+                    
+                    print(f"   Recolector {recolector['id_recolector']}: {len(ubicaciones.data) if ubicaciones.data else 0} ubicaciones")
+                    
+                    if ubicaciones.data and len(ubicaciones.data) > 0:
+                        ubicacion = ubicaciones.data[0]
+                        resultado.append({
+                            'id_recolector': recolector['id_recolector'],
+                            'nombre': f"{recolector['nombre']} {recolector['apellido']}",
+                            'apellidos': recolector['apellido'],
+                            'telefono': recolector['telefono'],
+                            'vehiculo': recolector['vehiculo'],
+                            'placa': recolector['placa'],
+                            'lat': ubicacion['lat'],
+                            'lng': ubicacion['lng'],
+                            'id_ubicacion': ubicacion['id_ubicacion']
+                        })
+            
+            print(f"✅ Devolviendo {len(resultado)} recolectores con ubicación")
+            return jsonify(resultado)
+        except Exception as e:
+            print(f'❌ Error consultando Supabase: {e}')
+            import traceback
+            traceback.print_exc()
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    
+    # Obtener todos los recolectores
+    recolectores = conn.execute('''
+        SELECT id_usuario, nombre, apellidos, telefono 
+        FROM usuarios 
+        WHERE rol = 'recolector'
+    ''').fetchall()
+    
+    resultado = []
+    for recolector in recolectores:
+        # Obtener última ubicación
+        ubicacion = conn.execute('''
+            SELECT lat, lng, timestamp 
+            FROM ubicaciones_recolectores 
+            WHERE id_recolector = ? 
+            ORDER BY timestamp DESC 
+            LIMIT 1
+        ''', (recolector['id_usuario'],)).fetchone()
+        
+        if ubicacion:
+            resultado.append({
+                'id_recolector': recolector['id_usuario'],
+                'nombre': recolector['nombre'],
+                'apellidos': recolector['apellidos'],
+                'telefono': recolector['telefono'],
+                'lat': ubicacion['lat'],
+                'lng': ubicacion['lng'],
+                'timestamp': ubicacion['timestamp']
+            })
+    
+    conn.close()
+    return jsonify(resultado)
+
 # Obtener todas las rutas sugeridas
 @app.route('/api/usuario/rutas-sugeridas')
 def get_rutas_sugeridas():
@@ -843,6 +1276,39 @@ def get_rutas_generales():
     return jsonify(result)
 
 # ==================== INICIAR APLICACIÓN ====================
+@app.route('/admin/init-contraseñas', methods=['POST'])
+def init_contraseñas():
+    """SOLO PARA ADMIN: Inicializa contraseñas para recolectores sin contraseña"""
+    if supabase_client:
+        try:
+            # Obtener todos los recolectores
+            recolectores = supabase_client.table('usuarios').select('*').eq('rol', 'recolector').execute()
+            
+            if recolectores.data:
+                for recolector in recolectores.data:
+                    # Si no tiene contraseña o está vacía
+                    if not recolector.get('contrasena') or recolector.get('contrasena') == '':
+                        # Generar contraseña por defecto: 123456
+                        nueva_hash = generate_password_hash('123456')
+                        
+                        # Actualizar en Supabase
+                        supabase_client.table('usuarios').update({
+                            'contrasena': nueva_hash
+                        }).eq('id_usuario', recolector['id_usuario']).execute()
+                        
+                        print(f"✓ Contraseña agregada a {recolector.get('nombre', 'Unknown')} (ID: {recolector['id_usuario']})")
+                
+                return jsonify({
+                    'success': True, 
+                    'mensaje': f'Contraseñas inicializadas para {len(recolectores.data)} recolectores',
+                    'contraseña_por_defecto': '123456'
+                })
+        except Exception as e:
+            print(f'Error inicializando contraseñas: {e}')
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    return jsonify({'success': False, 'error': 'Supabase no está configurado'}), 500
+
 if __name__ == '__main__':
     import sys
     init_db()
