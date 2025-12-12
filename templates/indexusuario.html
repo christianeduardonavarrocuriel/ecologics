@@ -55,6 +55,32 @@
         .sidebar-menu-item:hover {
             transform: translateX(4px);
         }
+
+        /* Override blue palette to green brand #27ae60 */
+        :root {
+            --brand-main: #27ae60;
+            --brand-dark: #1f8a4c;
+            --brand-light: #2ecc71;
+            --brand-50: #e8f7ef;
+        }
+        .bg-blue-600 { background-color: var(--brand-main) !important; }
+        .bg-blue-50 { background-color: var(--brand-50) !important; }
+        /* Text defaults: white; active: dark */
+        .text-blue-600, .text-blue-700, .text-blue-500, .text-blue-100, .text-blue-50, .text-blue-200 {
+            color: #ffffff !important;
+        }
+        .sidebar-menu-item.bg-white, .sidebar-menu-item.bg-white span, .sidebar-menu-item.bg-white svg {
+            color: #000000 !important;
+            stroke: #000000 !important;
+        }
+        .sidebar-menu-item:hover svg { stroke: #ffffff !important; }
+        .border-blue-500, .border-blue-200, .border-blue-100 { border-color: var(--brand-main) !important; }
+        .from-blue-600 { --tw-gradient-from: var(--brand-main) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(39,174,96,0)) !important; }
+        .to-blue-700 { --tw-gradient-to: var(--brand-dark) !important; }
+        .hover\:bg-blue-500\/30:hover { background-color: rgba(39, 174, 96, 0.3) !important; }
+        .bg-gradient-to-b.from-blue-600.to-blue-700 { background-image: linear-gradient(to bottom, var(--brand-main), var(--brand-dark)) !important; }
+        .bg-gradient-to-r.from-blue-50.to-green-50 { background-image: linear-gradient(to right, var(--brand-50), var(--brand-light)) !important; }
+        .bg-gradient-to-r.from-blue-600.to-blue-700 { background-image: linear-gradient(to right, var(--brand-main), var(--brand-dark)) !important; }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -92,18 +118,6 @@
                     </svg>
                     <span class="text-sm">Seguimiento en Tiempo Real</span>
                 </button>
-                <button onclick="changeView('rutas')" data-view="rutas" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
-                    </svg>
-                    <span class="text-sm">Rutas Generales</span>
-                </button>
-                <button onclick="changeView('sugerir-ruta')" data-view="sugerir-ruta" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-                    </svg>
-                    <span class="text-sm">Sugerir Ruta</span>
-                </button>
                 <button onclick="changeView('quejas')" data-view="quejas" class="sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
@@ -117,8 +131,14 @@
                     <span class="text-sm">Perfil</span>
                 </button>
             </nav>
-            <div class="p-4 border-t border-blue-500">
-                <p class="text-xs text-blue-200">© 2025 EcoRecolección</p>
+            <div class="p-4 border-t border-blue-500 space-y-2">
+                <button onclick="cerrarSesion()" class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a1 1 0 01-1 1H5a2 2 0 01-2-2V7a2 2 0 012-2h7a1 1 0 011 1v1"/>
+                    </svg>
+                    Cerrar sesión
+                </button>
+                <p class="text-xs text-blue-200">© 2025 ECOLOGICS</p>
             </div>
         </aside>
 

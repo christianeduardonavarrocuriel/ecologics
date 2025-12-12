@@ -19,6 +19,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     changeView('inicio');
 });
 
+async function cerrarSesion() {
+    try {
+        await fetch('/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {
+        console.warn('No se pudo llamar /logout, redirigiendo de todas formas');
+    } finally {
+        window.location.href = '/';
+    }
+}
+
 // Cargar token Mapbox y configurar capa base
 async function loadMapboxToken() {
     try {
@@ -76,7 +86,7 @@ function updateSidebar() {
     buttons.forEach(button => {
         const viewName = button.getAttribute('data-view');
         if (viewName === currentView) {
-            button.className = 'sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 bg-white text-blue-700 shadow-lg';
+            button.className = 'sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 bg-white text-black shadow-lg';
         } else {
             button.className = 'sidebar-menu-item w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 text-blue-50 hover:bg-blue-500/30';
         }
@@ -110,14 +120,6 @@ function renderView() {
             mainContent.innerHTML = renderSeguimiento();
             initSeguimiento();
             break;
-        case 'rutas':
-            mainContent.innerHTML = renderRutas();
-            initRutas();
-            break;
-        case 'sugerir-ruta':
-            mainContent.innerHTML = renderSugerirRuta();
-            initSugerirRuta();
-            break;
         case 'quejas':
             mainContent.innerHTML = renderQuejas();
             initQuejas();
@@ -146,52 +148,53 @@ function renderDashboard() {
             <h1 class="text-3xl font-bold text-gray-800 mb-6">Inicio</h1>
             
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div class="bg-white rounded-xl shadow-sm border border-green-200 p-6 hover:shadow-md transition-shadow">
                     <div class="flex items-start justify-between mb-4">
-                        <div class="p-3 bg-blue-50 rounded-lg">
-                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="p-3 border border-green-300 bg-white rounded-lg shadow-sm">
+                            <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                             </svg>
                         </div>
                     </div>
                     <h3 class="text-gray-500 text-sm mb-1">Solicitudes Totales</h3>
-                    <p id="stat-total" class="text-3xl font-bold text-blue-600">...</p>
+                    <p id="stat-total" class="text-3xl font-bold text-green-700">...</p>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div class="bg-white rounded-xl shadow-sm border border-green-200 p-6 hover:shadow-md transition-shadow">
                     <div class="flex items-start justify-between mb-4">
-                        <div class="p-3 bg-orange-50 rounded-lg">
-                            <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="p-3 border border-green-300 bg-white rounded-lg shadow-sm">
+                            <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                             </svg>
                         </div>
                     </div>
                     <h3 class="text-gray-500 text-sm mb-1">Solicitudes Pendientes</h3>
-                    <p id="stat-pendientes" class="text-3xl font-bold text-orange-600">...</p>
+                    <p id="stat-pendientes" class="text-3xl font-bold text-green-700">...</p>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div class="bg-white rounded-xl shadow-sm border border-green-200 p-6 hover:shadow-md transition-shadow">
                     <div class="flex items-start justify-between mb-4">
-                        <div class="p-3 bg-green-50 rounded-lg">
-                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="p-3 border border-green-300 bg-white rounded-lg shadow-sm">
+                            <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                             </svg>
                         </div>
                     </div>
                     <h3 class="text-gray-500 text-sm mb-1">Solicitudes Completadas</h3>
-                    <p id="stat-completadas" class="text-3xl font-bold text-green-600">...</p>
+                    <p id="stat-completadas" class="text-3xl font-bold text-green-700">...
+                    </p>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div class="bg-white rounded-xl shadow-sm border border-green-200 p-6 hover:shadow-md transition-shadow">
                     <div class="flex items-start justify-between mb-4">
-                        <div class="p-3 bg-teal-50 rounded-lg">
-                            <svg class="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="p-3 border border-green-300 bg-white rounded-lg shadow-sm">
+                            <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
                             </svg>
                         </div>
                     </div>
                     <h3 class="text-gray-500 text-sm mb-1">Total de Residuos</h3>
-                    <p id="stat-kilos" class="text-3xl font-bold text-teal-600">...</p>
+                    <p id="stat-kilos" class="text-3xl font-bold text-green-700">...</p>
                 </div>
             </div>
 
@@ -271,10 +274,32 @@ function renderSolicitarRecoleccion() {
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                     <h3 class="text-xl font-semibold text-gray-800 mb-4">Datos de la Solicitud</h3>
                     <form id="solicitudForm" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Calle</label>
+                                <input type="text" id="dir_calle" placeholder="Ej: Av. Revolución" 
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Colonia</label>
+                                <input type="text" id="dir_colonia" placeholder="Ej: Centro" 
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Número exterior <span class="text-gray-400">(opcional)</span></label>
+                                <input type="text" id="dir_num_ext" placeholder="Ej: 123" 
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Código Postal</label>
+                                <input type="text" id="dir_cp" placeholder="Ej: 42000" 
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" required>
+                            </div>
+                        </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Dirección</label>
-                            <input type="text" id="direccion" placeholder="Calle, número, colonia" 
-                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" required>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Referencias <span class="text-gray-400">(opcional)</span></label>
+                            <input type="text" id="direccion" placeholder="Punto de referencia adicional" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
                         </div>
 
                         <div>
@@ -472,13 +497,66 @@ function initSolicitarForm() {
     
     const form = document.getElementById('solicitudForm');
     if (form) {
+        // Geocodificar al escribir los campos de dirección
+        const calle = document.getElementById('dir_calle');
+        const colonia = document.getElementById('dir_colonia');
+        const numExt = document.getElementById('dir_num_ext');
+        const cp = document.getElementById('dir_cp');
+        const refs = document.getElementById('direccion');
+        let geoDebounceId = null;
+
+        function buildQuery() {
+            const parts = [];
+            if (calle && calle.value.trim()) parts.push(calle.value.trim());
+            if (numExt && numExt.value.trim()) parts.push(numExt.value.trim());
+            if (colonia && colonia.value.trim()) parts.push(colonia.value.trim());
+            if (cp && cp.value.trim()) parts.push(cp.value.trim());
+            // Sugerir ciudad/estado para mejorar precisión
+            parts.push('Hidalgo, México');
+            return parts.join(', ');
+        }
+
+        function scheduleGeocode() {
+            const q = buildQuery();
+            // Validación mínima: calle y colonia y cp
+            if (!(calle.value.trim().length >= 3 && colonia.value.trim().length >= 3 && cp.value.trim().length >= 4)) return;
+            if (geoDebounceId) clearTimeout(geoDebounceId);
+            geoDebounceId = setTimeout(async () => {
+                const coords = await geocodeAddress(q);
+                const msg = document.getElementById('ubicacionMsg');
+                if (coords && currentMap && currentMarker) {
+                    currentMarker.setLatLng([coords.lat, coords.lng]);
+                    currentMap.setView([coords.lat, coords.lng], 16);
+                    if (msg) {
+                        msg.classList.remove('hidden');
+                        msg.innerHTML = `<p class="text-sm text-green-800">✓ Dirección localizada: ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}</p>`;
+                    }
+                } else if (msg) {
+                    msg.classList.remove('hidden');
+                    msg.innerHTML = `<p class="text-sm text-yellow-800">⚠️ No se encontró la dirección. Ajusta los campos o arrastra el marcador.</p>`;
+                }
+            }, 600);
+        }
+
+        [calle, colonia, numExt, cp, refs].forEach(el => {
+            if (!el) return;
+            el.addEventListener('input', scheduleGeocode);
+            el.addEventListener('blur', scheduleGeocode);
+        });
+
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const position = currentMarker ? currentMarker.getLatLng() : {lat: null, lng: null};
             
             const data = {
-                direccion: document.getElementById('direccion').value,
+                direccion: {
+                    calle: calle ? calle.value : null,
+                    colonia: colonia ? colonia.value : null,
+                    num_ext: numExt ? numExt.value : null,
+                    cp: cp ? cp.value : null,
+                    referencias: refs ? refs.value : null
+                },
                 kilos: parseFloat(document.getElementById('kilos').value),
                 tipoResiduo: document.getElementById('tipoResiduo').value,
                 informacion: document.getElementById('informacion').value,
@@ -512,6 +590,36 @@ function initSolicitarForm() {
             }
         });
     }
+}
+
+// Geocodificación usando Mapbox si hay token, de lo contrario Nominatim (OSM)
+async function geocodeAddress(query) {
+    try {
+        // Intentar con Mapbox si hay token
+        if (mapboxToken) {
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&language=es&limit=1&country=mx`;
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                const feat = data.features && data.features[0];
+                if (feat && feat.center && feat.center.length >= 2) {
+                    return { lat: feat.center[1], lng: feat.center[0] };
+                }
+            }
+        }
+        // Fallback a Nominatim
+        const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=1&countrycodes=mx`;
+        const res2 = await fetch(nomUrl, { headers: { 'Accept-Language': 'es' } });
+        if (res2.ok) {
+            const data2 = await res2.json();
+            if (Array.isArray(data2) && data2.length > 0) {
+                return { lat: parseFloat(data2[0].lat), lng: parseFloat(data2[0].lon) };
+            }
+        }
+    } catch (err) {
+        console.error('Error geocodificando dirección:', err);
+    }
+    return null;
 }
 
 function obtenerUbicacion() {
@@ -683,7 +791,7 @@ function getEstadoBadge(estado) {
     const styles = {
         'completada': 'bg-green-100 text-green-700 border-green-200',
         'en-proceso': 'bg-orange-100 text-orange-700 border-orange-200',
-        'pendiente': 'bg-blue-100 text-blue-700 border-blue-200'
+        'pendiente': 'bg-green-50 text-green-700 border-green-200'
     };
     const labels = {
         'completada': 'Completada',
@@ -717,7 +825,7 @@ async function loadSolicitudesTable(filtro = 'todas') {
                         <td class="px-6 py-4 text-sm text-gray-700">${sol.tipo_residuo}</td>
                         <td class="px-6 py-4 text-sm text-gray-700">${sol.kilos} kg</td>
                         <td class="px-6 py-4">
-                            <button onclick='verDetalleSolicitud(${JSON.stringify(sol).replace(/'/g, "&apos;")})' class="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
+                            <button onclick='verDetalleSolicitud(${JSON.stringify(sol).replace(/'/g, "&apos;")})' class="flex items-center gap-2 px-3 py-2 border border-green-300 bg-white text-green-700 rounded-lg hover:bg-green-50 transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -806,7 +914,7 @@ function renderSeguimiento() {
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-xl font-semibold text-gray-800">Ubicación del Recolector</h3>
                             <div class="flex items-center gap-2">
-                                <button onclick="obtenerMiUbicacionSeguimiento()" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm flex items-center gap-1">
+                                <button onclick="obtenerMiUbicacionSeguimiento()" class="px-3 py-1 border border-green-300 bg-white text-green-700 rounded-lg hover:bg-green-50 transition-colors text-sm flex items-center gap-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                                     </svg>
@@ -823,27 +931,27 @@ function renderSeguimiento() {
                         </div>
 
                         <div class="grid grid-cols-3 gap-4 mt-4">
-                            <div class="bg-blue-50 rounded-lg p-3 text-center">
-                                <svg class="w-5 h-5 text-blue-600 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div class="border border-green-300 bg-white rounded-lg p-3 text-center shadow-sm">
+                                <svg class="w-5 h-5 text-green-700 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                                 </svg>
-                                <p class="text-sm text-gray-600">Distancia</p>
-                                <p class="font-bold text-blue-600">2.5 km</p>
+                                <p class="text-sm text-gray-700">Distancia</p>
+                                <p class="font-bold text-green-700">2.5 km</p>
                             </div>
-                            <div class="bg-green-50 rounded-lg p-3 text-center">
-                                <svg class="w-5 h-5 text-green-600 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div class="border border-green-300 bg-white rounded-lg p-3 text-center shadow-sm">
+                                <svg class="w-5 h-5 text-green-700 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                                 </svg>
-                                <p class="text-sm text-gray-600">Tiempo estimado</p>
-                                <p class="font-bold text-green-600">12 min</p>
+                                <p class="text-sm text-gray-700">Tiempo estimado</p>
+                                <p class="font-bold text-green-700">12 min</p>
                             </div>
-                            <div class="bg-orange-50 rounded-lg p-3 text-center">
-                                <svg class="w-5 h-5 text-orange-600 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div class="border border-green-300 bg-white rounded-lg p-3 text-center shadow-sm">
+                                <svg class="w-5 h-5 text-green-700 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
                                 </svg>
-                                <p class="text-sm text-gray-600">Vehículo</p>
-                                <p class="font-bold text-orange-600">Unidad 42</p>
+                                <p class="text-sm text-gray-700">Vehículo</p>
+                                <p class="font-bold text-green-700">Unidad 42</p>
                             </div>
                         </div>
                     </div>
@@ -1129,47 +1237,9 @@ function initSeguimiento() {
     }, 300);
 }
 
-// RUTAS GENERALES
-function renderRutas() {
-    return `
-        <div>
-            <h1 class="text-3xl font-bold text-gray-800 mb-6">Rutas Generales</h1>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Mapa de Rutas</h3>
-                <div class="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg" style="height: 600px;">
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <p class="text-gray-600">Mapa de rutas generales</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
+// (Eliminado: rutas generales)
 
-function initRutas() {
-    // Inicialización de rutas
-}
-
-// SUGERIR RUTA
-function renderSugerirRuta() {
-    return `
-        <div>
-            <h1 class="text-3xl font-bold text-gray-800 mb-6">Sugerir Ruta</h1>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Traza tu ruta sugerida</h3>
-                <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg" style="height: 600px;">
-                    <div class="h-full flex items-center justify-center">
-                        <p class="text-gray-600">Mapa interactivo para sugerir rutas</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function initSugerirRuta() {
-    // Inicialización
-}
+// (Eliminado: sugerir ruta para usuarios)
 
 // QUEJAS Y SOPORTE
 function renderQuejas() {
@@ -1180,8 +1250,8 @@ function renderQuejas() {
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                     <div class="flex items-center gap-3 mb-6">
-                        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="w-12 h-12 border border-green-300 bg-white rounded-full flex items-center justify-center shadow-sm">
+                            <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                             </svg>
                         </div>
@@ -1229,16 +1299,16 @@ function renderQuejas() {
                 </div>
 
                 <div class="space-y-6">
-                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-sm p-6 text-white">
+                    <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-sm p-6 text-white">
                         <h3 class="text-xl font-semibold mb-4">Información de Contacto</h3>
                         <div class="space-y-3 text-sm">
                             <div>
-                                <p class="text-blue-100 mb-1">Teléfono de Soporte</p>
+                                <p class="text-green-50 mb-1">Teléfono de Soporte</p>
                                 <p class="text-lg font-bold">01-800-RESIDUOS</p>
-                                <p class="text-blue-100 text-xs">Lunes a Viernes: 8:00 AM - 6:00 PM</p>
+                                <p class="text-green-50 text-xs">Lunes a Viernes: 8:00 AM - 6:00 PM</p>
                             </div>
-                            <div class="pt-3 border-t border-blue-400">
-                                <p class="text-blue-100 mb-1">Email</p>
+                            <div class="pt-3 border-t border-green-200">
+                                <p class="text-green-50 mb-1">Email</p>
                                 <p class="font-semibold">soporte@ecorecoleccion.com</p>
                             </div>
                         </div>
@@ -1286,8 +1356,6 @@ function initQuejas() {
 
 // PERFIL
 function renderPerfil() {
-    loadPerfilData();
-    
     return `
         <div>
             <h1 class="text-3xl font-bold text-gray-800 mb-6">Mi Perfil</h1>
@@ -1309,24 +1377,13 @@ function renderPerfil() {
                             <div class="w-2 h-2 bg-green-500 rounded-full"></div>
                             Cuenta Activa
                         </div>
-
-                        <div class="pt-4 border-t border-gray-200">
-                            <div class="flex items-center justify-between mb-3">
-                                <span class="text-sm text-gray-500">Miembro desde</span>
-                                <span class="text-sm text-gray-700 font-medium">2024-01-15</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-500">Solicitudes totales</span>
-                                <span class="text-sm text-gray-700 font-medium">24</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
                 <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                     <div class="flex items-center justify-between mb-6">
                         <h3 class="text-xl font-semibold text-gray-800">Información Personal</h3>
-                        <button onclick="editarPerfil()" class="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
+                        <button onclick="editarPerfil()" class="px-4 py-2 border border-green-300 bg-white text-green-700 rounded-lg hover:bg-green-50 transition-colors">
                             Editar Perfil
                         </button>
                     </div>
@@ -1345,33 +1402,35 @@ async function loadPerfilData() {
         await loadUserProfile();
     }
     
-    if (userProfile) {
-        document.getElementById('perfilNombre').textContent = `${userProfile.nombre} ${userProfile.apellidos}`;
-        
-        const perfilInfo = document.getElementById('perfilInfo');
-        perfilInfo.innerHTML = `
-            <div>
-                <label class="block text-sm font-medium text-gray-500 mb-1">Nombre Completo</label>
-                <p class="text-gray-800">${userProfile.nombre} ${userProfile.apellidos}</p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-500 mb-1">Email</label>
-                <p class="text-gray-800">${userProfile.email}</p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-500 mb-1">Teléfono</label>
-                <p class="text-gray-800">${userProfile.telefono || 'No especificado'}</p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-500 mb-1">Dirección</label>
-                <p class="text-gray-800">${userProfile.direccion || 'No especificada'}</p>
-            </div>
-        `;
-    }
+    if (!userProfile) return;
+
+    const nombreEl = document.getElementById('perfilNombre');
+    const perfilInfo = document.getElementById('perfilInfo');
+    if (!nombreEl || !perfilInfo) return; // vista aún no montada
+
+    nombreEl.textContent = `${userProfile.nombre} ${userProfile.apellidos}`;
+    perfilInfo.innerHTML = `
+        <div>
+            <label class="block text-sm font-medium text-gray-500 mb-1">Nombre Completo</label>
+            <p class="text-gray-800">${userProfile.nombre} ${userProfile.apellidos}</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-500 mb-1">Email</label>
+            <p class="text-gray-800">${userProfile.email}</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-500 mb-1">Teléfono</label>
+            <p class="text-gray-800">${userProfile.telefono || 'No especificado'}</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-500 mb-1">Dirección</label>
+            <p class="text-gray-800">${userProfile.direccion || 'No especificada'}</p>
+        </div>
+    `;
 }
 
 function initPerfil() {
-    // Inicialización
+    loadPerfilData();
 }
 
 function editarPerfil() {
