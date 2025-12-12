@@ -4,100 +4,47 @@ let selectedVehiculo = null;
 let selectedSolicitud = null;
 let animationInterval = null;
 
-// Datos de vehículos (mutable para animación)
-let vehiculos = [
-    { id: 1, matricula: 'ABC-123-D', conductor: 'Carlos Martínez', ruta: 'Ruta Centro', estado: 'operativo', x: 30, y: 40, solicitud: 5678 },
-    { id: 2, matricula: 'DEF-456-G', conductor: 'Luis García', ruta: 'Ruta Norte', estado: 'operativo', x: 60, y: 25, solicitud: 5677 },
-    { id: 3, matricula: 'GHI-789-J', conductor: 'Ana Rodríguez', ruta: 'Ruta Sur', estado: 'mantenimiento', x: 45, y: 70, solicitud: null },
-    { id: 4, matricula: 'JKL-012-M', conductor: 'Miguel Torres', ruta: 'Ruta Poniente', estado: 'parado', x: 20, y: 60, solicitud: null },
-];
+// Variables globales para almacenar datos desde la base de datos
+let vehiculos = [];
+let solicitudes = [];
+let rutasData = [];
+let recolectores = [];
+let quejas = [];
 
-// Datos de solicitudes
-const solicitudes = [
-    {
-        id: 5678,
-        usuario: 'Juan Pérez',
-        recolector: 'Carlos Martínez',
-        matricula: 'ABC-123-D',
-        estado: 'en-proceso',
-        fecha: '2025-12-10 10:30',
-        direccion: 'Av. Reforma 123, Col. Centro',
-        tipoResiduo: 'Plástico',
-        kilos: 25,
-        telefono: '+52 55 1234 5678',
-    },
-    {
-        id: 5677,
-        usuario: 'María López',
-        recolector: 'Luis García',
-        matricula: 'DEF-456-G',
-        estado: 'completada',
-        fecha: '2025-12-10 09:15',
-        direccion: 'Calle Juárez 456, Col. Juárez',
-        tipoResiduo: 'Papel',
-        kilos: 15,
-        telefono: '+52 55 2345 6789',
-    },
-    {
-        id: 5676,
-        usuario: 'Pedro García',
-        recolector: 'Sin asignar',
-        matricula: '-',
-        estado: 'pendiente',
-        fecha: '2025-12-10 11:00',
-        direccion: 'Av. Insurgentes 789, Col. Roma',
-        tipoResiduo: 'Vidrio',
-        kilos: 30,
-        telefono: '+52 55 3456 7890',
-    },
-    {
-        id: 5675,
-        usuario: 'Ana Rodríguez',
-        recolector: 'Miguel Torres',
-        matricula: 'GHI-789-J',
-        estado: 'en-proceso',
-        fecha: '2025-12-10 08:45',
-        direccion: 'Calle Madero 321, Col. Centro',
-        tipoResiduo: 'Metal',
-        kilos: 40,
-        telefono: '+52 55 4567 8901',
-    },
-];
+// Cargar datos desde el backend
+async function cargarDatos() {
+    try {
+        const [vehiculosRes, solicitudesRes, rutasRes, recolectoresRes, quejasRes] = await Promise.all([
+            fetch('/api/admin/vehiculos'),
+            fetch('/api/usuario/solicitudes'),
+            fetch('/api/admin/rutas'),
+            fetch('/api/admin/recolectores'),
+            fetch('/api/admin/quejas')
+        ]);
+        
+        vehiculos = await vehiculosRes.json();
+        solicitudes = await solicitudesRes.json();
+        const rutasCompletas = await rutasRes.json();
+        recolectores = await recolectoresRes.json();
+        quejas = await quejasRes.json();
+        
+        // Transformar rutas al formato esperado
+        rutasData = rutasCompletas.map(ruta => ({
+            id: ruta.id_ruta,
+            nombre: `Ruta ${ruta.numero_ruta}`,
+            descripcion: ruta.descripcion || '',
+            vehiculo: ruta.matricula || 'N/A',
+            puntos: ruta.puntos || []
+        }));
+        
+        console.log('Datos cargados exitosamente');
+    } catch (error) {
+        console.error('Error cargando datos:', error);
+        // Mantener arrays vacíos si falla la carga
+    }
+}
 
-// Datos de rutas
-let rutasData = {
-    sugeridas: [
-        {
-            id: 1,
-            usuario: 'Juan Pérez',
-            nombre: 'Ruta Colonia Reforma',
-            descripcion: 'Ruta optimizada para la zona residencial de Reforma',
-            fecha: '2025-12-08',
-            puntos: 12,
-        },
-        {
-            id: 2,
-            usuario: 'María López',
-            nombre: 'Ruta Industrial Norte',
-            descripcion: 'Conecta zonas industriales con mejor acceso',
-            fecha: '2025-12-07',
-            puntos: 8,
-        },
-        {
-            id: 3,
-            usuario: 'Carlos Ruiz',
-            nombre: 'Ruta Centro Histórico',
-            descripcion: 'Ruta para calles estrechas del centro',
-            fecha: '2025-12-06',
-            puntos: 15,
-        },
-    ],
-    activas: [
-        { id: 101, nombre: 'Ruta Centro', vehiculo: 'ABC-123-D', estado: 'activa', puntos: 12 },
-        { id: 102, nombre: 'Ruta Norte', vehiculo: 'DEF-456-G', estado: 'activa', puntos: 8 },
-        { id: 103, nombre: 'Ruta Sur', vehiculo: 'GHI-789-J', estado: 'activa', puntos: 15 },
-    ]
-};
+
 
 let vistaRutasActual = 'sugeridas';
 let pointsRuta = [];
@@ -170,75 +117,6 @@ let camionesHidalgo = [
 let mapaHidalgo = null;
 let markersHidalgo = {};
 
-// Datos de recolectores
-const recolectores = [
-    {
-        id: 1,
-        nombre: 'Carlos Martínez',
-        supervisor: 'Juan López',
-        asignaciones: 12,
-        completadas: 10,
-        rating: 4.8,
-        telefono: '+52 55 1111 1111',
-        email: 'carlos.martinez@ecologics.com',
-        vehiculo: 'ABC-123-D',
-        estado: 'activo',
-        historial: [
-            { id: 5678, fecha: '2025-12-10', residuo: 'Plástico', kilos: 25, estado: 'completada' },
-            { id: 5677, fecha: '2025-12-09', residuo: 'Papel', kilos: 15, estado: 'completada' },
-            { id: 5676, fecha: '2025-12-08', residuo: 'Vidrio', kilos: 30, estado: 'completada' },
-        ]
-    },
-    {
-        id: 2,
-        nombre: 'Luis García',
-        supervisor: 'María López',
-        asignaciones: 10,
-        completadas: 9,
-        rating: 4.6,
-        telefono: '+52 55 2222 2222',
-        email: 'luis.garcia@ecologics.com',
-        vehiculo: 'DEF-456-G',
-        estado: 'activo',
-        historial: [
-            { id: 5675, fecha: '2025-12-10', residuo: 'Metal', kilos: 40, estado: 'completada' },
-            { id: 5674, fecha: '2025-12-09', residuo: 'Plástico', kilos: 20, estado: 'completada' },
-        ]
-    },
-    {
-        id: 3,
-        nombre: 'Ana Rodríguez',
-        supervisor: 'Carlos Ruiz',
-        asignaciones: 15,
-        completadas: 13,
-        rating: 4.9,
-        telefono: '+52 55 3333 3333',
-        email: 'ana.rodriguez@ecologics.com',
-        vehiculo: 'GHI-789-J',
-        estado: 'activo',
-        historial: [
-            { id: 5673, fecha: '2025-12-10', residuo: 'Papel', kilos: 25, estado: 'completada' },
-            { id: 5672, fecha: '2025-12-09', residuo: 'Vidrio', kilos: 35, estado: 'completada' },
-            { id: 5671, fecha: '2025-12-08', residuo: 'Metal', kilos: 45, estado: 'completada' },
-        ]
-    },
-    {
-        id: 4,
-        nombre: 'Miguel Torres',
-        supervisor: 'Juan López',
-        asignaciones: 8,
-        completadas: 7,
-        rating: 4.5,
-        telefono: '+52 55 4444 4444',
-        email: 'miguel.torres@ecologics.com',
-        vehiculo: 'JKL-012-M',
-        estado: 'inactivo',
-        historial: [
-            { id: 5670, fecha: '2025-12-08', residuo: 'Plástico', kilos: 30, estado: 'completada' },
-        ]
-    }
-];
-
 // Títulos de páginas
 const pageTitles = {
     panel: 'Panel General',
@@ -246,12 +124,14 @@ const pageTitles = {
     recolectores: 'Recolectores',
     rutas: 'Rutas',
     seguimiento: 'Seguimiento de Vehículos',
-    reportes: 'Reportes y Quejas',
-    configuracion: 'Configuración'
+    reportes: 'Reportes y Quejas'
 };
 
 // Inicialización
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // Cargar datos de la base de datos primero
+    await cargarDatos();
+    
     changeView('panel');
     renderSolicitudes();
 });
@@ -298,8 +178,6 @@ function changeView(view) {
         renderRecolectores();
     } else if (view === 'reportes') {
         renderReportes();
-    } else if (view === 'configuracion') {
-        renderConfiguracion();
     }
 }
 
@@ -1671,53 +1549,7 @@ function crearBackupAhora() {
 let filtroQuejasEstado = 'todas';
 let quejaSeleccionada = null;
 
-// Datos de quejas
-const quejas = [
-    {
-        id: 234,
-        usuario: 'Juan Pérez',
-        solicitud: 5678,
-        motivo: 'Retraso en la recolección',
-        descripcion: 'El recolector llegó 2 horas tarde de lo programado',
-        fecha: '2025-12-10 11:00',
-        estado: 'pendiente',
-        recolector: 'Carlos Martínez',
-        prioridad: 'alta',
-    },
-    {
-        id: 233,
-        usuario: 'María López',
-        solicitud: 5650,
-        motivo: 'No se recolectaron los residuos',
-        descripcion: 'El camión pasó pero no recogió los residuos que estaban en la entrada',
-        fecha: '2025-12-09 15:30',
-        estado: 'en-revision',
-        recolector: 'Luis García',
-        prioridad: 'alta',
-    },
-    {
-        id: 232,
-        usuario: 'Pedro García',
-        solicitud: 5640,
-        motivo: 'Mal servicio del recolector',
-        descripcion: 'El recolector fue poco profesional y dejó basura regada',
-        fecha: '2025-12-08 10:15',
-        estado: 'resuelta',
-        recolector: 'Ana Rodríguez',
-        prioridad: 'media',
-    },
-    {
-        id: 231,
-        usuario: 'Ana Martínez',
-        solicitud: null,
-        motivo: 'Problema técnico con la app',
-        descripcion: 'No pude completar la solicitud de recolección por un error en el formulario',
-        fecha: '2025-12-07 14:20',
-        estado: 'en-revision',
-        recolector: null,
-        prioridad: 'baja',
-    },
-];
+
 
 function renderReportes() {
     const reportesView = document.getElementById('reportesView');

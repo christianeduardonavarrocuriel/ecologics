@@ -593,3 +593,48 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// Función para guardar ubicación en la base de datos
+async function guardarUbicacion(lat, lng, tipo = 'recolector') {
+  try {
+    const response = await fetch('/api/ubicacion', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ lat, lng, tipo })
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      console.log('Ubicación guardada correctamente:', lat, lng);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error guardando ubicación:', error);
+    return false;
+  }
+}
+
+// Función auxiliar para obtener ubicación actual del navegador
+function obtenerUbicacionActual() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocalización no soportada'));
+      return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+      },
+      (error) => {
+        reject(error);
+      }
+    );
+  });
+}

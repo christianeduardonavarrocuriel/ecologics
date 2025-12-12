@@ -315,6 +315,24 @@ def get_perfil():
     if 'user_id' not in session:
         session['user_id'] = 1  # Usuario demo
     
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            response = supabase_client.table('usuarios').select('*').eq('id_usuario', session['user_id']).execute()
+            if response.data and len(response.data) > 0:
+                user = response.data[0]
+                return jsonify({
+                    'nombre': user.get('nombre', ''),
+                    'apellidos': user.get('apellidos', ''),
+                    'email': user.get('correo', ''),
+                    'telefono': user.get('telefono', ''),
+                    'direccion': user.get('direccion', ''),
+                    'username': user.get('username', '')
+                })
+        except Exception as e:
+            print(f'Error consultando perfil en Supabase: {e}')
+    
+    # Fallback a SQLite
     conn = get_db_connection()
     user = conn.execute('SELECT * FROM usuarios WHERE id_usuario = ?', (session['user_id'],)).fetchone()
     conn.close()
@@ -336,19 +354,32 @@ def get_solicitudes():
     
     filtro = request.args.get('estado', 'todas')
     
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            query = supabase_client.table('solicitudes_recoleccion').select('*')
+            
+            if filtro != 'todas':
+                query = query.eq('estado', filtro)
+            
+            response = query.order('fecha_solicitud', desc=True).execute()
+            return jsonify(response.data if response.data else [])
+        except Exception as e:
+            print(f'Error consultando Supabase: {e}')
+    
+    # Fallback a SQLite
     conn = get_db_connection()
     if filtro == 'todas':
         solicitudes = conn.execute('''
             SELECT * FROM solicitudes_recoleccion 
-            WHERE id_usuario = ? 
             ORDER BY fecha_solicitud DESC
-        ''', (session['user_id'],)).fetchall()
+        ''').fetchall()
     else:
         solicitudes = conn.execute('''
             SELECT * FROM solicitudes_recoleccion 
-            WHERE id_usuario = ? AND estado = ?
+            WHERE estado = ?
             ORDER BY fecha_solicitud DESC
-        ''', (session['user_id'], filtro)).fetchall()
+        ''', (filtro,)).fetchall()
     conn.close()
     
     return jsonify([dict(row) for row in solicitudes])
@@ -361,6 +392,28 @@ def crear_solicitud():
     
     data = request.get_json()
     
+    payload = {
+        'id_usuario': session['user_id'],
+        'direccion': data.get('direccion', ''),
+        'kilos': data.get('kilos', 0),
+        'tipo_residuo': data.get('tipoResiduo', ''),
+        'info_extra': data.get('informacion', ''),
+        'telefono': data.get('telefono', ''),
+        'lat': data.get('lat'),
+        'lng': data.get('lng'),
+        'estado': 'pendiente'
+    }
+    
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            response = supabase_client.table('solicitudes_recoleccion').insert(payload).execute()
+            if response.data:
+                return jsonify({'success': True, 'id_solicitud': response.data[0].get('id_solicitud')})
+        except Exception as e:
+            print(f'Error insertando en Supabase: {e}')
+    
+    # Fallback a SQLite
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -369,13 +422,13 @@ def crear_solicitud():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
     ''', (
         session['user_id'],
-        data['direccion'],
-        data['kilos'],
-        data['tipoResiduo'],
-        data.get('informacion', ''),
-        data.get('telefono', ''),
-        data.get('lat'),
-        data.get('lng')
+        payload['direccion'],
+        payload['kilos'],
+        payload['tipo_residuo'],
+        payload['info_extra'],
+        payload['telefono'],
+        payload['lat'],
+        payload['lng']
     ))
     
     id_solicitud = cursor.lastrowid
@@ -390,46 +443,53 @@ def get_estadisticas():
     if 'user_id' not in session:
         session['user_id'] = 1  # Usuario demo
     
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            # Total de solicitudes
+            total_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').execute()
+            total = total_resp.count if hasattr(total_resp, 'count') else len(total_resp.data)
+            
+            # Pendientes
+            pend_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'pendiente').execute()
+            pendientes = pend_resp.count if hasattr(pend_resp, 'count') else len(pend_resp.data)
+            
+            # En proceso
+            proc_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'en-proceso').execute()
+            en_proceso = proc_resp.count if hasattr(proc_resp, 'count') else len(proc_resp.data)
+            
+            # Completadas
+            comp_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'completada').execute()
+            completadas = comp_resp.count if hasattr(comp_resp, 'count') else len(comp_resp.data)
+            
+            # Total de kilos
+            kilos_resp = supabase_client.table('solicitudes_recoleccion').select('kilos').eq('estado', 'completada').execute()
+            total_kilos = sum(row.get('kilos', 0) for row in kilos_resp.data) if kilos_resp.data else 0
+            
+            # Actividad reciente
+            actividad_resp = supabase_client.table('solicitudes_recoleccion').select('*').order('fecha_solicitud', desc=True).limit(4).execute()
+            actividad = actividad_resp.data if actividad_resp.data else []
+            
+            return jsonify({
+                'total': total,
+                'pendientes': pendientes,
+                'en_proceso': en_proceso,
+                'completadas': completadas,
+                'total_kilos': round(total_kilos, 2),
+                'actividad': actividad
+            })
+        except Exception as e:
+            print(f'Error consultando estadísticas en Supabase: {e}')
+    
+    # Fallback a SQLite
     conn = get_db_connection()
     
-    # Total de solicitudes
-    total = conn.execute('''
-        SELECT COUNT(*) as count FROM solicitudes_recoleccion 
-        WHERE id_usuario = ?
-    ''', (session['user_id'],)).fetchone()['count']
-    
-    # Pendientes
-    pendientes = conn.execute('''
-        SELECT COUNT(*) as count FROM solicitudes_recoleccion 
-        WHERE id_usuario = ? AND estado = 'pendiente'
-    ''', (session['user_id'],)).fetchone()['count']
-    
-    # En proceso
-    en_proceso = conn.execute('''
-        SELECT COUNT(*) as count FROM solicitudes_recoleccion 
-        WHERE id_usuario = ? AND estado = 'en-proceso'
-    ''', (session['user_id'],)).fetchone()['count']
-    
-    # Completadas
-    completadas = conn.execute('''
-        SELECT COUNT(*) as count FROM solicitudes_recoleccion 
-        WHERE id_usuario = ? AND estado = 'completada'
-    ''', (session['user_id'],)).fetchone()['count']
-    
-    # Total de kilos
-    total_kilos = conn.execute('''
-        SELECT SUM(kilos) as total FROM solicitudes_recoleccion 
-        WHERE id_usuario = ? AND estado = 'completada'
-    ''', (session['user_id'],)).fetchone()['total'] or 0
-    
-    # Actividad reciente
-    actividad = conn.execute('''
-        SELECT id_solicitud, fecha_solicitud, estado, tipo_residuo 
-        FROM solicitudes_recoleccion 
-        WHERE id_usuario = ?
-        ORDER BY fecha_solicitud DESC
-        LIMIT 4
-    ''', (session['user_id'],)).fetchall()
+    total = conn.execute('SELECT COUNT(*) as count FROM solicitudes_recoleccion').fetchone()['count']
+    pendientes = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'pendiente'").fetchone()['count']
+    en_proceso = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'en-proceso'").fetchone()['count']
+    completadas = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'completada'").fetchone()['count']
+    total_kilos = conn.execute("SELECT SUM(kilos) as total FROM solicitudes_recoleccion WHERE estado = 'completada'").fetchone()['total'] or 0
+    actividad = conn.execute('SELECT id_solicitud, fecha_solicitud, estado, tipo_residuo FROM solicitudes_recoleccion ORDER BY fecha_solicitud DESC LIMIT 4').fetchall()
     
     conn.close()
     
@@ -450,6 +510,23 @@ def crear_queja():
     
     data = request.get_json()
     
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            response = supabase_client.table('quejas').insert({
+                'id_usuario': session['user_id'],
+                'id_solicitud': data.get('numeroSolicitud'),
+                'rol_reporta': 'usuario',
+                'motivo': data['motivo'],
+                'detalles': data['descripcion'],
+                'estado': 'pendiente'
+            }).execute()
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            print(f'Error creando queja en Supabase: {e}')
+    
+    # Fallback a SQLite
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -476,6 +553,36 @@ def sugerir_ruta():
     
     data = request.get_json()
     
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            # Insertar la sugerencia
+            response = supabase_client.table('rutas_sugeridas').insert({
+                'id_usuario': session['user_id'],
+                'descripcion': data.get('descripcion', '')
+            }).execute()
+            
+            if response.data and len(response.data) > 0:
+                id_sugerencia = response.data[0]['id_sugerencia']
+                
+                # Insertar los puntos de la ruta
+                puntos = []
+                for i, punto in enumerate(data['puntos']):
+                    puntos.append({
+                        'id_sugerencia': id_sugerencia,
+                        'lat': punto['lat'],
+                        'lng': punto['lng'],
+                        'orden': i
+                    })
+                
+                if puntos:
+                    supabase_client.table('puntos_ruta_sugerida').insert(puntos).execute()
+                
+                return jsonify({'success': True, 'id_sugerencia': id_sugerencia})
+        except Exception as e:
+            print(f'Error creando ruta sugerida en Supabase: {e}')
+    
+    # Fallback a SQLite
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -505,21 +612,41 @@ def get_seguimiento(id_solicitud):
     if 'user_id' not in session:
         session['user_id'] = 1  # Usuario demo
     
-    # En producción, aquí obtendrías la ubicación real del recolector
-    # Obtener última ubicación del recolector
-    conn = get_db_connection()
-    ubicacion = conn.execute('''
-        SELECT lat, lng FROM ubicaciones_recolectores 
-        WHERE id_recolector = 2 
-        ORDER BY timestamp DESC LIMIT 1
-    ''').fetchone()
+    lat, lng = 19.4326, -99.1332  # Valores por defecto
     
-    if ubicacion:
-        lat, lng = ubicacion['lat'], ubicacion['lng']
-    else:
-        lat, lng = 19.4326, -99.1332
+    # Intentar obtener ubicación desde Supabase
+    if supabase_client:
+        try:
+            # Obtener última ubicación del recolector asignado a esta solicitud
+            asig_resp = supabase_client.table('asignaciones').select('id_recolector').eq('id_solicitud', id_solicitud).execute()
+            
+            if asig_resp.data and len(asig_resp.data) > 0:
+                id_recolector = asig_resp.data[0]['id_recolector']
+                
+                ubic_resp = supabase_client.table('ubicaciones_recolectores').select('lat, lng').eq('id_recolector', id_recolector).order('timestamp', desc=True).limit(1).execute()
+                
+                if ubic_resp.data and len(ubic_resp.data) > 0:
+                    lat = ubic_resp.data[0]['lat']
+                    lng = ubic_resp.data[0]['lng']
+        except Exception as e:
+            print(f'Error obteniendo seguimiento: {e}')
     
-    conn.close()
+    # Fallback a SQLite si Supabase falla
+    if lat == 19.4326 and lng == -99.1332:
+        try:
+            conn = get_db_connection()
+            ubicacion = conn.execute('''
+                SELECT lat, lng FROM ubicaciones_recolectores 
+                WHERE id_recolector = 2 
+                ORDER BY timestamp DESC LIMIT 1
+            ''').fetchone()
+            
+            if ubicacion:
+                lat, lng = ubicacion['lat'], ubicacion['lng']
+            
+            conn.close()
+        except:
+            pass
     
     return jsonify({
         'recolector': {
@@ -545,6 +672,20 @@ def guardar_ubicacion():
     
     data = request.get_json()
     
+    # Intentar con Supabase primero
+    if supabase_client:
+        try:
+            supabase_client.table('ubicaciones_recolectores').insert({
+                'id_recolector': session['user_id'],
+                'lat': data['lat'],
+                'lng': data['lng']
+            }).execute()
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            print(f'Error guardando ubicación en Supabase: {e}')
+    
+    # Fallback a SQLite
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -588,6 +729,116 @@ def get_rutas_sugeridas():
             'puntos': [{'lat': p['lat'], 'lng': p['lng']} for p in puntos]
         })
     
+    conn.close()
+    return jsonify(result)
+
+# Obtener quejas
+@app.route('/api/admin/quejas')
+def get_quejas():
+    if supabase_client:
+        try:
+            response = supabase_client.table('quejas').select('*, usuarios(nombre, apellidos, correo)').order('fecha_queja', desc=True).execute()
+            return jsonify(response.data if response.data else [])
+        except Exception as e:
+            print(f'Error consultando quejas: {e}')
+    
+    conn = get_db_connection()
+    quejas = conn.execute('''
+        SELECT q.*, u.nombre, u.apellidos, u.correo
+        FROM quejas q
+        JOIN usuarios u ON q.id_usuario = u.id_usuario
+        ORDER BY q.fecha_queja DESC
+    ''').fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in quejas])
+
+# Obtener recolectores
+@app.route('/api/admin/recolectores')
+def get_recolectores():
+    if supabase_client:
+        try:
+            response = supabase_client.table('recolectores').select('*').execute()
+            if response.data:
+                result = []
+                for rec in response.data:
+                    # Contar asignaciones si existe la tabla
+                    try:
+                        asig_resp = supabase_client.table('asignaciones').select('id_asignacion', count='exact').eq('id_recolector', rec['id_recolector']).execute()
+                        comp_resp = supabase_client.table('asignaciones').select('id_asignacion', count='exact').eq('id_recolector', rec['id_recolector']).not_.is_('fecha_finalizacion', 'null').execute()
+                        
+                        rec['asignaciones_totales'] = asig_resp.count if hasattr(asig_resp, 'count') else len(asig_resp.data) if asig_resp.data else 0
+                        rec['completadas'] = comp_resp.count if hasattr(comp_resp, 'count') else len(comp_resp.data) if comp_resp.data else 0
+                    except:
+                        rec['asignaciones_totales'] = 0
+                        rec['completadas'] = 0
+                    
+                    result.append(rec)
+                return jsonify(result)
+        except Exception as e:
+            print(f'Error consultando recolectores: {e}')
+    
+    # Fallback a SQLite
+    conn = get_db_connection()
+    recolectores = conn.execute("SELECT * FROM usuarios WHERE rol = 'recolector'").fetchall()
+    result = []
+    for rec in recolectores:
+        asig = conn.execute('SELECT COUNT(*) as count FROM asignaciones WHERE id_recolector = ?', (rec['id_usuario'],)).fetchone()
+        comp = conn.execute('SELECT COUNT(*) as count FROM asignaciones WHERE id_recolector = ? AND fecha_finalizacion IS NOT NULL', (rec['id_usuario'],)).fetchone()
+        rec_dict = dict(rec)
+        rec_dict['asignaciones_totales'] = asig['count']
+        rec_dict['completadas'] = comp['count']
+        result.append(rec_dict)
+    conn.close()
+    return jsonify(result)
+
+# Obtener vehículos
+@app.route('/api/admin/vehiculos')
+def get_vehiculos():
+    if supabase_client:
+        try:
+            response = supabase_client.table('vehiculos').select('*, usuarios(nombre, apellidos)').execute()
+            return jsonify(response.data if response.data else [])
+        except Exception as e:
+            print(f'Error consultando vehículos: {e}')
+    
+    conn = get_db_connection()
+    vehiculos = conn.execute('''
+        SELECT v.*, u.nombre, u.apellidos
+        FROM vehiculos v
+        JOIN usuarios u ON v.supervisor = u.id_usuario
+    ''').fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in vehiculos])
+
+# Obtener rutas generales
+@app.route('/api/admin/rutas')
+def get_rutas_generales():
+    if supabase_client:
+        try:
+            response = supabase_client.table('rutas_generales').select('*, vehiculos(matricula, tipo)').execute()
+            if response.data:
+                result = []
+                for ruta in response.data:
+                    puntos_resp = supabase_client.table('puntos_ruta').select('*').eq('id_ruta', ruta['id_ruta']).order('orden').execute()
+                    ruta['puntos'] = puntos_resp.data if puntos_resp.data else []
+                    result.append(ruta)
+                return jsonify(result)
+        except Exception as e:
+            print(f'Error consultando rutas: {e}')
+    
+    conn = get_db_connection()
+    rutas = conn.execute('''
+        SELECT rg.*, v.matricula, v.tipo
+        FROM rutas_generales rg
+        JOIN vehiculos v ON rg.id_vehiculo = v.id_vehiculo
+    ''').fetchall()
+    
+    result = []
+    for ruta in rutas:
+        puntos = conn.execute('SELECT * FROM puntos_ruta WHERE id_ruta = ? ORDER BY orden', (ruta['id_ruta'],)).fetchall()
+        ruta_dict = dict(ruta)
+        ruta_dict['puntos'] = [dict(p) for p in puntos]
+        result.append(ruta_dict)
     conn.close()
     return jsonify(result)
 
