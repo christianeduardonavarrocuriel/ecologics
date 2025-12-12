@@ -469,7 +469,8 @@ def get_solicitudes():
     # Intentar con Supabase primero
     if supabase_client:
         try:
-            query = supabase_client.table('solicitudes_recoleccion').select('*')
+            # Filtrar por el usuario autenticado
+            query = supabase_client.table('solicitudes_recoleccion').select('*').eq('id_usuario', session['user_id'])
             
             if filtro != 'todas':
                 query = query.eq('estado', filtro)
@@ -484,14 +485,15 @@ def get_solicitudes():
     if filtro == 'todas':
         solicitudes = conn.execute('''
             SELECT * FROM solicitudes_recoleccion 
+            WHERE id_usuario = ?
             ORDER BY fecha_solicitud DESC
-        ''').fetchall()
+        ''', (session['user_id'],)).fetchall()
     else:
         solicitudes = conn.execute('''
             SELECT * FROM solicitudes_recoleccion 
-            WHERE estado = ?
+            WHERE estado = ? AND id_usuario = ?
             ORDER BY fecha_solicitud DESC
-        ''', (filtro,)).fetchall()
+        ''', (filtro, session['user_id'])).fetchall()
     conn.close()
     
     return jsonify([dict(row) for row in solicitudes])
@@ -785,28 +787,28 @@ def get_estadisticas():
     # Intentar con Supabase primero
     if supabase_client:
         try:
-            # Total de solicitudes
-            total_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').execute()
+            # Total de solicitudes del usuario
+            total_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('id_usuario', session['user_id']).execute()
             total = total_resp.count if hasattr(total_resp, 'count') else len(total_resp.data)
             
             # Pendientes
-            pend_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'pendiente').execute()
+            pend_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'pendiente').eq('id_usuario', session['user_id']).execute()
             pendientes = pend_resp.count if hasattr(pend_resp, 'count') else len(pend_resp.data)
             
             # En proceso
-            proc_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'en-proceso').execute()
+            proc_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'en-proceso').eq('id_usuario', session['user_id']).execute()
             en_proceso = proc_resp.count if hasattr(proc_resp, 'count') else len(proc_resp.data)
             
             # Completadas
-            comp_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'completada').execute()
+            comp_resp = supabase_client.table('solicitudes_recoleccion').select('id_solicitud', count='exact').eq('estado', 'completada').eq('id_usuario', session['user_id']).execute()
             completadas = comp_resp.count if hasattr(comp_resp, 'count') else len(comp_resp.data)
             
             # Total de kilos
-            kilos_resp = supabase_client.table('solicitudes_recoleccion').select('kilos').eq('estado', 'completada').execute()
+            kilos_resp = supabase_client.table('solicitudes_recoleccion').select('kilos').eq('estado', 'completada').eq('id_usuario', session['user_id']).execute()
             total_kilos = sum(row.get('kilos', 0) for row in kilos_resp.data) if kilos_resp.data else 0
             
             # Actividad reciente
-            actividad_resp = supabase_client.table('solicitudes_recoleccion').select('*').order('fecha_solicitud', desc=True).limit(4).execute()
+            actividad_resp = supabase_client.table('solicitudes_recoleccion').select('*').eq('id_usuario', session['user_id']).order('fecha_solicitud', desc=True).limit(4).execute()
             actividad = actividad_resp.data if actividad_resp.data else []
             
             return jsonify({
@@ -823,12 +825,12 @@ def get_estadisticas():
     # Fallback a SQLite
     conn = get_db_connection()
     
-    total = conn.execute('SELECT COUNT(*) as count FROM solicitudes_recoleccion').fetchone()['count']
-    pendientes = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'pendiente'").fetchone()['count']
-    en_proceso = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'en-proceso'").fetchone()['count']
-    completadas = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'completada'").fetchone()['count']
-    total_kilos = conn.execute("SELECT SUM(kilos) as total FROM solicitudes_recoleccion WHERE estado = 'completada'").fetchone()['total'] or 0
-    actividad = conn.execute('SELECT id_solicitud, fecha_solicitud, estado, tipo_residuo FROM solicitudes_recoleccion ORDER BY fecha_solicitud DESC LIMIT 4').fetchall()
+    total = conn.execute('SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE id_usuario = ?', (session['user_id'],)).fetchone()['count']
+    pendientes = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'pendiente' AND id_usuario = ?", (session['user_id'],)).fetchone()['count']
+    en_proceso = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'en-proceso' AND id_usuario = ?", (session['user_id'],)).fetchone()['count']
+    completadas = conn.execute("SELECT COUNT(*) as count FROM solicitudes_recoleccion WHERE estado = 'completada' AND id_usuario = ?", (session['user_id'],)).fetchone()['count']
+    total_kilos = conn.execute("SELECT SUM(kilos) as total FROM solicitudes_recoleccion WHERE estado = 'completada' AND id_usuario = ?", (session['user_id'],)).fetchone()['total'] or 0
+    actividad = conn.execute('SELECT id_solicitud, fecha_solicitud, estado, tipo_residuo FROM solicitudes_recoleccion WHERE id_usuario = ? ORDER BY fecha_solicitud DESC LIMIT 4', (session['user_id'],)).fetchall()
     
     conn.close()
     
