@@ -20,7 +20,11 @@ function initLoginPage() {
     // Función para mostrar mensajes
     function showMessage(element, message) {
         if (element) {
-            element.textContent = message;
+            const span = element.querySelector('span');
+            if (span) {
+                span.textContent = message;
+            }
+            element.style.display = 'flex';
             element.classList.add('show');
             setTimeout(() => {
                 element.classList.remove('show');
@@ -30,8 +34,14 @@ function initLoginPage() {
 
     // Función para ocultar mensajes
     function hideMessages() {
-        if (errorMessage) errorMessage.classList.remove('show');
-        if (successMessage) successMessage.classList.remove('show');
+        if (errorMessage) {
+            errorMessage.classList.remove('show');
+            errorMessage.style.display = 'none';
+        }
+        if (successMessage) {
+            successMessage.classList.remove('show');
+            successMessage.style.display = 'none';
+        }
     }
 
     // Handle form submission
@@ -56,23 +66,35 @@ function initLoginPage() {
                 return;
             }
 
-            // Simulación de autenticación
-            // En producción, esto debería hacer una petición al backend
-            const mockUsers = [
-                { email: 'admin@ecologics.com', password: 'admin123' },
-                { email: 'usuario@ejemplo.com', password: 'usuario123' }
-            ];
+            fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            })
+            .then(async (response) => {
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    showMessage(errorMessage, data && data.message ? data.message : 'Credenciales incorrectas.');
+                    return;
+                }
 
-            const user = mockUsers.find(u => u.email === email && u.password === password);
-
-            if (user) {
                 showMessage(successMessage, '¡Inicio de sesión exitoso! Redirigiendo...');
+                const rol = data.rol || 'usuario';
+                const redirectMap = {
+                    admin: '/panel-admin',
+                    recolector: '/panel-recolector',
+                    usuario: '/panel-usuario'
+                };
+
                 setTimeout(() => {
-                    window.location.href = '/panel-usuario';
-                }, 1500);
-            } else {
-                showMessage(errorMessage, 'Credenciales incorrectas. Por favor, intente nuevamente.');
-            }
+                    window.location.href = redirectMap[rol] || '/panel-usuario';
+                }, 1200);
+            })
+            .catch(() => {
+                showMessage(errorMessage, 'No se pudo conectar con el servidor. Intente nuevamente.');
+            });
         });
     }
 

@@ -317,6 +317,22 @@ main {
     display: flex;
 }
 
+.server-error {
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    color: var(--danger);
+    margin-bottom: 12px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+}
+
+.server-error.show {
+    display: flex;
+}
+
 /* Responsive */
 @media (max-width: 992px) {
     .register-wrapper {

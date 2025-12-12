@@ -4,6 +4,7 @@ import sqlite3
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from supabase import Client, create_client
 
 # Cargar variables de entorno
 load_dotenv()
@@ -13,6 +14,12 @@ app.secret_key = 'tu_clave_secreta_super_segura_12345'
 
 DATABASE = 'ecologics.db'
 MAPBOX_TOKEN = os.getenv('MAPBOX_TOKEN', 'pk.eyJ1Ijoic3dldGllYWxpZW4iLCJhIjoiY21qMjN5dGZ6MGVqZTNkcHh5cjJrY3BhcCJ9.Tx1s_wXzp4O4kJmoJYgXhw')
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_ANON_KEY')
+supabase_client: Client | None = None
+
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==================== RUTAS DE LA APLICACIÓN ====================
 # GET  /                           -> index.html (Página de inicio)
@@ -43,6 +50,29 @@ def get_db_connection():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def get_supabase():
+    if not supabase_client:
+        raise RuntimeError('Supabase no está configurado. Añade SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY al entorno.')
+    return supabase_client
+
+
+def split_full_name(full_name: str):
+    parts = (full_name or '').strip().split()
+    if not parts:
+        return '', '-'
+    nombre = parts[0]
+    apellidos = ' '.join(parts[1:]) or '-'
+    return nombre, apellidos
+
+
+def derive_username(email: str, fallback_name: str):
+    if email and '@' in email:
+        return email.split('@')[0]
+    if fallback_name:
+        return fallback_name.replace(' ', '').lower()
+    return f'user{int(datetime.utcnow().timestamp())}'
 
 def init_db():
     """Inicializa la base de datos si no existe"""
@@ -92,30 +122,120 @@ def init_db():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        data = request.get_json()
-        username = data.get('username')
+        data = request.get_json() or {}
+        identifier = data.get('email') or data.get('username')
         password = data.get('password')
-        
-        conn = get_db_connection()
-        user = conn.execute('SELECT * FROM usuarios WHERE username = ?', (username,)).fetchone()
-        conn.close()
-        
-        if user and check_password_hash(user['contrasena'], password):
-            session['user_id'] = user['id_usuario']
-            session['username'] = user['username']
-            session['rol'] = user['rol']
-            session['nombre'] = user['nombre']
-            return jsonify({'success': True, 'rol': user['rol']})
-        
-        return jsonify({'success': False, 'message': 'Usuario o contraseña incorrectos'}), 401
-    
+
+        if not identifier or not password:
+            return jsonify({'success': False, 'message': 'Correo y contraseña son requeridos'}), 400
+
+        user = None
+
+        if supabase_client:
+            try:
+                response = supabase_client.table('usuarios') \
+                    .select('*') \
+                    .or_(f"correo.eq.{identifier},username.eq.{identifier}") \
+                    .limit(1) \
+                    .execute()
+                rows = response.data or []
+                if rows:
+                    candidate = rows[0]
+                    if check_password_hash(candidate['contrasena'], password):
+                        user = candidate
+            except Exception as exc:  # pragma: no cover - logging only
+                print(f"Error consultando Supabase: {exc}")
+                return jsonify({'success': False, 'message': 'No se pudo validar al usuario en Supabase'}), 500
+        else:
+            conn = get_db_connection()
+            db_user = conn.execute(
+                'SELECT * FROM usuarios WHERE correo = ? OR username = ?',
+                (identifier, identifier)
+            ).fetchone()
+            conn.close()
+
+            if db_user and check_password_hash(db_user['contrasena'], password):
+                user = db_user
+
+        if not user:
+            return jsonify({'success': False, 'message': 'Usuario o contraseña incorrectos'}), 401
+
+        session['user_id'] = user['id_usuario']
+        session['username'] = user['username']
+        session['rol'] = user['rol']
+        session['nombre'] = user['nombre']
+        return jsonify({'success': True, 'rol': user['rol']})
+
     return render_template('inicio_sesion.html')
 
 
-@app.route('/registro', methods=['GET'])
+@app.route('/registro', methods=['GET', 'POST'])
 def registro():
     """Página de registro de usuarios."""
-    return render_template('registro.html')
+    if request.method == 'GET':
+        return render_template('registro.html')
+
+    if not supabase_client:
+        return jsonify({'success': False, 'message': 'Supabase no está configurado en el servidor.'}), 500
+
+    data = request.get_json() or {}
+    full_name = data.get('fullName', '').strip()
+    email = (data.get('email') or '').strip().lower()
+    phone = data.get('phone', '').strip()
+    address = data.get('address', '').strip()
+    password = data.get('password', '')
+
+    if not all([full_name, email, phone, address, password]):
+        return jsonify({'success': False, 'message': 'Todos los campos son obligatorios.'}), 400
+
+    nombre, apellidos = split_full_name(full_name)
+    username = derive_username(email, full_name)
+
+    try:
+        supabase = get_supabase()
+        existing = supabase.table('usuarios') \
+            .select('id_usuario') \
+            .or_(f"correo.eq.{email},username.eq.{username}") \
+            .limit(1) \
+            .execute()
+
+        if existing.data:
+            return jsonify({'success': False, 'message': 'El correo o usuario ya está registrado.'}), 409
+
+        payload = {
+            'rol': 'usuario',
+            'username': username,
+            'correo': email,
+            'nombre': nombre,
+            'apellidos': apellidos,
+            'telefono': phone,
+            'direccion': address,
+            'contrasena': generate_password_hash(password)
+        }
+
+        inserted = supabase.table('usuarios').insert(payload).execute()
+        created = inserted.data[0] if inserted.data else None
+
+        if not created:
+            # Si la librería no devolvió la fila, la consultamos
+            fetched = supabase.table('usuarios') \
+                .select('*') \
+                .or_(f"correo.eq.{email},username.eq.{username}") \
+                .limit(1) \
+                .execute()
+            created = fetched.data[0] if fetched.data else None
+
+        if not created:
+            return jsonify({'success': False, 'message': 'No se pudo registrar el usuario.'}), 500
+
+        return jsonify({
+            'success': True,
+            'id_usuario': created.get('id_usuario') if created else None,
+            'rol': created.get('rol', 'usuario') if created else 'usuario'
+        })
+    except Exception as exc:  # pragma: no cover - logging only
+        print(f"Error al registrar en Supabase: {exc}")
+        return jsonify({'success': False, 'message': 'Ocurrió un problema al registrar el usuario.'}), 500
 
 @app.route('/logout')
 def logout():

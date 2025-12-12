@@ -24,6 +24,8 @@ function initRegisterPage() {
     const passwordInput = document.getElementById('password');
     const confirmPasswordInput = document.getElementById('confirmPassword');
     const successMessage = document.querySelector('.success-message');
+    const serverError = document.querySelector('.server-error');
+    const submitButton = registerForm ? registerForm.querySelector('button[type="submit"]') : null;
 
     // Toggle password visibility
     if (togglePassword && passwordInput) {
@@ -61,6 +63,21 @@ function initRegisterPage() {
         
         if (input) input.classList.remove('error');
         if (errorText) errorText.classList.remove('show');
+    }
+
+    function showBanner(element, message) {
+        if (!element) return;
+        const span = element.querySelector('span');
+        if (span) {
+            span.textContent = message;
+        }
+        element.classList.add('show');
+    }
+
+    function hideBanner(element) {
+        if (element) {
+            element.classList.remove('show');
+        }
     }
 
     // Validación en tiempo real para email
@@ -154,6 +171,9 @@ function initRegisterPage() {
         registerForm.addEventListener('submit', function(e) {
             e.preventDefault();
 
+            hideBanner(serverError);
+            hideBanner(successMessage);
+
             // Limpiar errores previos
             ['fullName', 'email', 'phone', 'address', 'password', 'confirmPassword'].forEach(clearError);
 
@@ -224,13 +244,48 @@ function initRegisterPage() {
                 return;
             }
 
-            // Si todo es válido, mostrar mensaje de éxito
-            if (successMessage) {
-                successMessage.classList.add('show');
+            const payload = {
+                fullName,
+                email,
+                phone,
+                address,
+                password
+            };
+
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.classList.add('loading');
+            }
+
+            fetch('/registro', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(async (response) => {
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    const message = data && data.message ? data.message : 'No se pudo completar el registro.';
+                    showBanner(serverError, message);
+                    return;
+                }
+
+                showBanner(successMessage, '¡Registro exitoso! Redirigiendo a inicio de sesión...');
                 setTimeout(() => {
                     window.location.href = '/login';
-                }, 2000);
-            }
+                }, 1800);
+            })
+            .catch(() => {
+                showBanner(serverError, 'No se pudo conectar con el servidor. Inténtalo de nuevo.');
+            })
+            .finally(() => {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.classList.remove('loading');
+                }
+            });
         });
     }
 }
