@@ -345,10 +345,10 @@ function initSolicitarForm() {
         if (mapElement && !currentMap) {
             try {
                 // Crear el mapa centrado en la ubicación actual
-                // Coordenadas centrales de Hidalgo: 20.0911, -98.7624
+                // Coordenadas de Tulancingo de Bravo, Hidalgo
                 currentMap = L.map('mapaSolicitud', {
-                    center: [20.0911, -98.7624],
-                    zoom: 9,
+                    center: [20.082, -98.363],
+                    zoom: 12,
                     minZoom: 3,
                     maxZoom: 18
                 });
@@ -357,12 +357,12 @@ function initSolicitarForm() {
                 // Agregar capa base (Mapbox si hay token, OSM si no)
                 addBaseTileLayer(currentMap);
                 
-                // Agregar marcador draggable temporal (centro de Pachuca, Hidalgo)
-                currentMarker = L.marker([20.1011, -98.7591], {
+                // Agregar marcador draggable temporal (centro de Tulancingo, Hidalgo)
+                currentMarker = L.marker([20.082, -98.363], {
                     draggable: true,
                     title: 'Arrastra para cambiar ubicación'
                 }).addTo(currentMap);
-                currentMarker.bindPopup('Pachuca, Hidalgo - Arrastra para ajustar').openPopup();
+                currentMarker.bindPopup('Tulancingo de Bravo, Hidalgo - Arrastra para ajustar').openPopup();
                 
                 // Forzar actualización del tamaño del mapa
                 setTimeout(() => {
@@ -451,7 +451,7 @@ function initSolicitarForm() {
                                 default: errorMsg = 'Error desconocido al obtener ubicación.';
                             }
                             
-                            msg.innerHTML = `<p class="text-sm text-red-800">✗ ${errorMsg}<br><small>Usando ubicación predeterminada: Pachuca, Hidalgo<br>Arrastra el marcador para ajustar o click "Obtener Ubicación Actual"</small></p>`;
+                            msg.innerHTML = `<p class="text-sm text-red-800">✗ ${errorMsg}<br><small>Usando ubicación predeterminada: Tulancingo de Bravo, Hidalgo<br>Arrastra el marcador para ajustar o click "Obtener Ubicación Actual"</small></p>`;
                         },
                         {
                             enableHighAccuracy: true,
@@ -500,7 +500,7 @@ function initSolicitarForm() {
                     alert('Solicitud enviada exitosamente. ID de solicitud: #' + result.id_solicitud);
                     form.reset();
                     if (currentMarker) {
-                        currentMarker.setLatLng([19.4326, -99.1332]);
+                        currentMarker.setLatLng([20.082, -98.363]);
                     }
                     document.getElementById('ubicacionMsg').classList.add('hidden');
                 } else {
@@ -894,9 +894,9 @@ function initSeguimiento() {
         
         if (mapElement && !currentMap) {
             try {
-                // Crear el mapa centrado en Pachuca, Hidalgo
+                // Crear el mapa centrado en Tulancingo de Bravo, Hidalgo
                 currentMap = L.map('mapaSeguimiento', {
-                    center: [20.1011, -98.7591],
+                    center: [20.082, -98.363],
                     zoom: 13,
                     minZoom: 8,
                     maxZoom: 18,
@@ -922,10 +922,10 @@ function initSeguimiento() {
                     iconAnchor: [20, 20]
                 });
                 
-                // Posición temporal del usuario (Pachuca, Hidalgo)
-                let userLat = 20.1011, userLng = -98.7591;
+                // Posición temporal del usuario (Tulancingo de Bravo, Hidalgo)
+                let userLat = 20.082, userLng = -98.363;
                 const userMarker = L.marker([userLat, userLng], {icon: userIcon}).addTo(currentMap);
-                userMarker.bindPopup("<b>Tu ubicación</b><br><small>Obteniendo GPS exacto...</small>").openPopup();
+                userMarker.bindPopup("<b>Tu ubicación en Tulancingo</b><br><small>Obteniendo GPS exacto...</small>").openPopup();
                 
                 // Obtener ubicación GPS real del usuario
                 if (navigator.geolocation) {
@@ -940,7 +940,7 @@ function initSeguimiento() {
                             
                             // Actualizar marcador del usuario
                             userMarker.setLatLng([userLat, userLng]);
-                            userMarker.bindPopup(`<b>Tu ubicación exacta en Hidalgo</b><br>Lat: ${userLat.toFixed(6)}<br>Lng: ${userLng.toFixed(6)}`);
+                            userMarker.bindPopup(`<b>Tu ubicación exacta en Tulancingo</b><br>Lat: ${userLat.toFixed(6)}<br>Lng: ${userLng.toFixed(6)}`);
                             
                             // Actualizar la línea de ruta con la ubicación real
                             const recolectorPos = recolectorMarker.getLatLng();
@@ -991,18 +991,18 @@ function initSeguimiento() {
                     iconAnchor: [20, 20]
                 });
                 
-                // Posición inicial del recolector (5km al norte de Pachuca)
-                const recolectorMarker = L.marker([20.1511, -98.7591], {
+                // Posición inicial del recolector (cercano a Tulancingo)
+                const recolectorMarker = L.marker([20.12, -98.34], {
                     icon: recolectorIcon,
                     draggable: true,
                     title: 'Arrastra para mover el recolector'
                 }).addTo(currentMap);
-                recolectorMarker.bindPopup("<b>Recolector Carlos</b><br>Unidad 42<br><small>Arrastra para simular movimiento</small>");
+                recolectorMarker.bindPopup("<b>Recolector Carlos</b><br>Unidad 42 (Tulancingo)<br><small>Arrastra para simular movimiento</small>");
                 
                 // Línea de ruta entre usuario y recolector
                 const routeLine = L.polyline([
-                    [20.1511, -98.7591],
-                    [20.1011, -98.7591]
+                    [20.12, -98.34],
+                    [20.082, -98.363]
                 ], {
                     color: '#3B82F6',
                     weight: 3,
@@ -1012,8 +1012,8 @@ function initSeguimiento() {
                 
                 // Ajustar vista para mostrar ambos marcadores
                 const bounds = L.latLngBounds([
-                    [20.1011, -98.7591],
-                    [20.1511, -98.7591]
+                    [20.082, -98.363],
+                    [20.12, -98.34]
                 ]);
                 currentMap.fitBounds(bounds, {padding: [80, 80]});
                 
@@ -1339,7 +1339,8 @@ function obtenerMiUbicacionSeguimiento() {
                     if (layer instanceof L.Marker) {
                         const pos = layer.getLatLng();
                         // Si es aproximadamente la ubicación del usuario (azul)
-                        if (Math.abs(pos.lat - 19.4326) < 0.01 && Math.abs(pos.lng + 99.1332) < 0.01) {
+                        // Aproximación: detectar marcador del usuario cerca del centro predeterminado de Tulancingo
+                        if (Math.abs(pos.lat - 20.082) < 0.02 && Math.abs(pos.lng + 98.363) < 0.02) {
                             layer.setLatLng([lat, lng]);
                             layer.bindPopup(`<b>Tu ubicación actual</b><br>${lat.toFixed(6)}, ${lng.toFixed(6)}`).openPopup();
                         }
